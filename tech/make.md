@@ -27,6 +27,8 @@ The project rule is that a reader needs only a few commands: `make up`, `make ru
 
 ## Walkthrough of this repository's use
 
+First the whole top of the Makefile, before any target:
+
 ```make
 # make up | run | benchmark | traces | test | lint | down   (make help lists all)
 SHELL := /bin/bash
@@ -42,64 +44,44 @@ export
 help: ## list the targets
 ```
 
-The first line is a comment listing the main targets. `SHELL := /bin/bash` makes recipes run in bash (the default `sh` lacks some features). `MVN := ./mvnw -B -ntp` stores the Maven command with its flags once (`-B` batch mode, `-ntp` no download progress). `PORT ?=` lines are defaults. `-include .env` and `export` bring `.env` values in.
+- The first line is a comment (a line starting with `#`) listing the main targets.
+- `SHELL := /bin/bash` makes `make` run recipe lines with bash instead of the default `sh`, which lacks some features the recipes use. `:=` assigns a value once, when the file is read.
+- `MVN := ./mvnw -B -ntp` stores the Maven command with its flags in a variable: `./mvnw` is the wrapper (see `maven.md`), `-B` is batch mode (no colors or interactive prompts), `-ntp` means no transfer progress (do not print a line for each downloaded file).
+- Lines such as `APP_PORT ?= 18101` set a variable only if it has no value yet, so `APP_PORT=18999 make up` overrides it. A **port** is the number a program listens on (see `properties-files.md`).
+- `-include .env` reads variable definitions from the file `.env` if it exists (the leading `-` means "do not fail if it is missing"). `export` makes every variable visible to the commands that `make` starts, as environment variables.
+- `.PHONY: ...` lists names that are tasks, not files. Without it, a file named `test` in the folder would make `make test` do nothing because that "target" would look up to date.
+- `help:` begins the first target; its recipe is in the table below.
 
-```make
-help: ## list the targets
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | sort
+Every target in this Makefile, with its prerequisites, the exact commands, and what it does:
 
-env:
-```
+| Target | Runs first | Commands it runs | What it does |
+| --- | --- | --- | --- |
+| `help` | - | `@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \| sed -E 's/:.*## /\t/' \| sort` | Prints every target that has a `## description` after its name. |
+| `env` | - | `@[ -f .env ] \|\| { cp .env.example .env; echo "created .env from .env.example"; }` | Creates `.env` from `.env.example` if it does not exist yet. `.env` holds local settings such as ports. |
+| `build` | - | `$(MVN) -DskipTests package` | Packages all modules into jars (no tests), because the load generator runs from its jar. |
+| `up` | env | `docker compose up -d --build --wait` | Builds the images and starts the containers, then waits until they report healthy. |
+| `run` | build | `scripts/scenario.sh http://localhost:$(PRICE_PORT) http://localhost:$(PROVIDER_PORT)` | Runs `scripts/scenario.sh`: the lesson's requests against the running service. |
+| `benchmark` | build | `scripts/benchmark.sh http://localhost:$(PRICE_PORT) http://localhost:$(PROVIDER_PORT)` | Runs the before/after load measurements and writes `docs/benchmark.md`. |
+| `traces` | - | `scripts/capture-traces.sh http://localhost:$(PRICE_PORT) http://localhost:$(PROVIDER_PORT) http://localhost:$(TEMPO_PORT)` | Fetches three traces from Tempo and writes text summaries to `docs/evidence/`. |
+| `serve` | env | `@echo "terminal 1: PORT=$(PROVIDER_PORT) java -jar provider/target/provider-0.1.0.jar"`<br>`@echo "terminal 2: PRICE_PROVIDER_BASE_URL=http://localhost:$(PROVIDER_PORT) SERVER_PORT=$(PRICE_PORT) $(MVN) -pl price-service spring-boot:run"` | Runs the application from source on your machine, in the foreground, without Docker for the application itself. |
+| `health` | - | `curl -fsS http://localhost:$(PRICE_PORT)/actuator/health/readiness \| jq -e '.status == "UP"' >/dev/null && echo "price-service UP"`<br>`curl -fsS http://localhost:$(PROVIDER_PORT)/health >/dev/null && echo "provider UP"` | Asks the readiness endpoint and succeeds only if it says UP. |
+| `test` | - | `$(MVN) verify` | Runs the whole Maven build: unit tests, integration tests and the coverage limits. |
+| `test-unit` | - | `$(MVN) test` | Runs only the unit and slice tests, which need no Docker. |
+| `lint` | - | `$(MVN) spotless:check checkstyle:check` | Checks formatting (Spotless) and style rules (Checkstyle); changes nothing. |
+| `format` | - | `$(MVN) spotless:apply` | Rewrites the Java files into the project format. |
+| `audit` | - | `scripts/audit.sh` | Runs the dependency vulnerability scan. |
+| `docker-build` | - | `docker build -f provider/Dockerfile -t spring-resilient-client-provider:dev .`<br>`docker build -f price-service/Dockerfile -t spring-resilient-client-price:dev .` | Builds the container image(s) only, without starting anything. |
+| `down` | - | `docker compose down -v --remove-orphans` | Stops and removes the containers, networks and data volumes. |
+| `clean` | down | `$(MVN) clean` | Runs `down`, then deletes Maven's `target/` folders. |
 
-The `help` target prints every target that has a `## comment` after its name: `grep` selects those lines, `sed` replaces `:.*## ` with a tab, `sort` orders them. That is why `make help` lists all targets with one-line descriptions.
+How to read the table: "Runs first" lists the prerequisites, so `up` with `env` runs `env` and then `up`. "Commands it runs" shows each recipe line as written; `$(NAME)` is replaced by a variable's value, and `$$` is a literal `$` handed to the shell. A recipe line starting with `@` is not echoed before it runs, and a line starting with `-` ignores a failing exit code (the exit code is the number a program returns when it ends: 0 means success).
 
-```make
-build: ## package all modules (the load generator is run from its jar)
-	$(MVN) -DskipTests package
+Four recipe details that are easy to misread:
 
-up: env ## build both images, start the provider, the price service and the Grafana stack, wait until healthy
-	docker compose up -d --build --wait
-
-run: build ## the lesson's scenario step by step against the running stack (make up first)
-	scripts/scenario.sh http://localhost:$(PRICE_PORT) http://localhost:$(PROVIDER_PORT)
-
-benchmark: build ## the before/after table: every provider mode, 100 requests a second (make up first, about 6 minutes)
-```
-
-- `build` packages all modules (`-DskipTests package`), because the load generator is run from its jar.
-- `up: env` creates `.env` and runs `docker compose up -d --build --wait` for the provider, the price service and the Grafana stack.
-- `run: build` first builds, then runs `scripts/scenario.sh` against the running stack. A prerequisite is how one target says "do that first".
-
-```make
-test: ## every module's unit, slice and integration tests, then the coverage gates
-	$(MVN) verify
-
-test-unit: ## unit and slice tests only
-	$(MVN) test
-
-lint: ## Spotless format check and Checkstyle on every module
-```
-
-`test` runs `./mvnw verify`: unit tests, integration tests and the coverage gates. `test-unit` runs only the fast tests.
-
-```make
-lint: ## Spotless format check and Checkstyle on every module
-	$(MVN) spotless:check checkstyle:check
-
-format: ## apply the Spotless formatting
-```
-
-`lint` runs both style tools (see `spotless-google-java-format.md` and `checkstyle.md`).
-
-```make
-down: ## stop the containers
-	docker compose down -v --remove-orphans
-
-clean: down
-	$(MVN) clean
-```
-
-`down` stops the containers (`-v` also deletes their data volumes; `--remove-orphans` removes leftovers). `clean` depends on `down` and then deletes `target/` through Maven.
+- `[ -f .env ] || { cp .env.example .env; ... }` is shell: `[ -f .env ]` tests whether the file exists; `||` runs the right side only if the test failed; `{ ...; }` groups several commands.
+- A backslash at the end of a line continues the command on the next line.
+- `$$(openssl rand -hex 16)` (in the PostgreSQL project) asks `openssl` for 16 random bytes written as 32 hexadecimal characters; `$$( ... )` is shell command substitution, doubled so `make` leaves it alone.
+- `docker compose exec -T postgres psql ...` runs a command inside the running database container; `-T` turns off the terminal so input can be piped in with `<`.
 
 ## Try it yourself
 

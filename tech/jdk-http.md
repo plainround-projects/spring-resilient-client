@@ -143,6 +143,48 @@ private static double percentile(long[] sorted, int percent) {
 
 The percentile uses the **nearest rank**: sort the latencies, take element number `ceil(p/100 × n)`.
 
+**Every class of the provider and of the load generator:**
+
+| File | What it is |
+| --- | --- |
+| `provider/src/main/java/dev/plainround/provider/FakeProvider.java` | A quote provider you control. |
+| `provider/src/main/java/dev/plainround/provider/JsonLog.java` | One JSON object per line on standard output: level, message and time, nothing else. |
+| `provider/src/main/java/dev/plainround/provider/ProviderMain.java` | Starts the fake provider on `PORT` (default 8081) and stops it when the process is told to. |
+| `provider/src/main/java/dev/plainround/provider/ProviderMode.java` | How the fake provider answers a quote request. |
+
+| File | What it is |
+| --- | --- |
+| `loadgen/src/main/java/dev/plainround/loadgen/LoadMain.java` | Command line: `java -jar loadgen.jar --target http://host/price/{sku` --skus 10 --rps 100 --seconds 30 [--side http://host/skus/sku-1 --side-rps 10]}. |
+| `loadgen/src/main/java/dev/plainround/loadgen/LoadRunner.java` | Sends requests at a fixed rate whether or not the earlier ones have come back (an open loop), so a slow target shows up as latency instead of quietly lowering the load. |
+| `loadgen/src/main/java/dev/plainround/loadgen/Report.java` | The outcome of one load run against one target. |
+
+**Their tests:**
+
+- `provider/src/test/java/dev/plainround/provider/FakeProviderTest.java`:
+  - `normalModeAnswers200WithADeterministicPriceAndCountsTheCall`
+  - `fail503ModeAnswers503AtOnce`
+  - `failNextAnswers503ForExactlyThatManyCallsThenReturnsToTheMode`
+  - `slowModeAnswersAfterTheConfiguredDelay`
+  - `hangModeIsSilentLongerThanAClientWillWaitButStillCountsTheCall`
+  - `theAdminEndpointSwitchesTheModeAtRunTime`
+  - `anUnknownModeIs400AndAGetOnTheAdminEndpointIs405`
+  - `maxInFlightRecordsTheMostCallsServedAtOnce`
+  - `resetZeroesTheCountersAndMetricsExposeThem`
+  - `modeNamesParseIgnoringCaseAndRejectNonsense`
+  - `theMainEntryPointStartsAProviderThatAnswersHealth`
+  - `hangLastsAsLongAsConfiguredAndThenAnswersEmptyJson`
+  - `jsonLogEscapesQuotesAndNewlines`
+
+- `loadgen/src/test/java/dev/plainround/loadgen/LoadgenTest.java`:
+  - `percentilesUseTheNearestRank`
+  - `anEmptyRunReportsZeros`
+  - `theJsonLineCarriesEveryNumber`
+  - `optionsParseInPairs`
+  - `theRunnerHoldsTheRateAndCountsErrorsAndStaleAnswers`
+  - `mainRunsThePriceTargetAndTheSideTargetAndPrintsOneJsonLineEach`
+  - `anUnreachableTargetCountsAsErrors`
+  - `aMissingTargetIsRejected`
+
 ## Try it yourself
 
 1. Run the provider: `PORT=18105 java -jar provider/target/provider-0.1.0.jar` (after `./mvnw -DskipTests package`).

@@ -41,6 +41,77 @@ void doesNotRetryOnATimeoutAndAnswers504InAboutTheReadTimeout() {
 
 `assertThat(elapsed).as("read timeout 500 ms, not the provider's 10 s").isBetween(Duration.ofMillis(400), Duration.ofSeconds(4))` checks that the call took about the timeout. `.as(...)` is the message shown if it fails. `assertThat(provider.callsReceived()).as("a timeout is not retried").isEqualTo(1)` reads the **provider's own** counter, an independent witness.
 
+**Every test class that uses AssertJ (all of them), with its tests:**
+
+- `loadgen/src/test/java/dev/plainround/loadgen/LoadgenTest.java`:
+  - `percentilesUseTheNearestRank`
+  - `anEmptyRunReportsZeros`
+  - `theJsonLineCarriesEveryNumber`
+  - `optionsParseInPairs`
+  - `theRunnerHoldsTheRateAndCountsErrorsAndStaleAnswers`
+  - `mainRunsThePriceTargetAndTheSideTargetAndPrintsOneJsonLineEach`
+  - `anUnreachableTargetCountsAsErrors`
+  - `aMissingTargetIsRejected`
+- `price-service/src/test/java/dev/plainround/price/ApplicationConfigurationTest.java`:
+  - `everyProviderCallHasBothTimeoutsAndTheRetryRulesFromTheLesson`
+  - `virtualThreadsJsonLogsGracefulShutdownAndFullTracingAreOn`
+- `price-service/src/test/java/dev/plainround/price/PriceServiceBehaviorIT.java`:
+  - `healthyProviderGivesAFreshPriceWithOneCall`
+  - `retriesAtMostThreeCallsTotalOn503`
+  - `doesNotRetryOnATimeoutAndAnswers504InAboutTheReadTimeout`
+  - `aSlowProviderBeyondTheTimeoutIsNotRetriedEither`
+  - `aRecentlyPricedSkuIsServedStaleWhenTheProviderIsDownAndANeverPricedOneIs503`
+  - `aQuoteOlderThanSixtySecondsIsNotServed`
+  - `staleServingAlsoCoversATimeout`
+  - `inFlightProviderCallsNeverExceedTheLimitWhileOtherEndpointsKeepAnswering`
+  - `metricsAndTraceIdsAreExposed`
+  - `healthIsUpWithLivenessAndReadinessProbes`
+- `price-service/src/test/java/dev/plainround/price/application/PriceServiceTest.java`:
+  - `aFreshQuoteIsReturnedAndRemembered`
+  - `whenTheProviderFailsTheLastGoodQuoteIsServedStaleWithItsAge`
+  - `aSkuNeverPricedIsNoPriceAvailableAndKeepsTheReason`
+  - `theCatalogServiceListsAndNamesAMissingSku`
+- `price-service/src/test/java/dev/plainround/price/domain/DomainTest.java`:
+  - `aFreshResultIsNotStaleAndHasNoAge`
+  - `aStaleResultCarriesTheAgeOfTheQuote`
+  - `aQuoteWithoutAPositivePriceIsAProviderFailure`
+  - `theNamedFailuresSayWhy`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/InMemoryQuoteCacheTest.java`:
+  - `aQuoteIsServedUntilSixtySecondsAfterItWasWritten`
+  - `readingDoesNotExtendTheLifeOfAQuote`
+  - `aNewQuoteReplacesTheOldOneAndRestartsTheClock`
+  - `theOldestEntryIsDroppedWhenTheBoundIsReached`
+  - `hitsAndMissesAreCounted`
+  - `theUnprotectedVariantsRememberNothingAndTheCatalogHasTenProducts`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderErrorsTest.java`:
+  - `aTimeoutInsideAnIoErrorIsAProviderTimeout`
+  - `aRefusedConnectionIsUnavailableNotATimeout`
+  - `aRejectionByTheConcurrencyLimitIsBusy`
+  - `aServerErrorAndAnythingElseAreUnavailable`
+  - `aDomainFailurePassesThroughUnchanged`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderPropertiesTest.java`:
+  - `defaultsAreOneSecondToConnectAndTwoToRead`
+  - `aZeroOrNegativeTimeoutStopsTheApplicationAtStartup`
+  - `aMissingBaseUrlOrAnAbsurdCacheBoundStopsTheApplication`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ResilienceAnnotationsTest.java`:
+  - `twentyConcurrentCallsAgainstALimitOfThreeNeverShowMoreThanThreeInFlight`
+  - `theRejectPolicyRefusesTheExcessAtOnceInsteadOfQueueing`
+  - `retryableStopsAfterTheConfiguredNumberOfRetriesAndOnlyForTheNamedException`
+- `provider/src/test/java/dev/plainround/provider/FakeProviderTest.java`:
+  - `normalModeAnswers200WithADeterministicPriceAndCountsTheCall`
+  - `fail503ModeAnswers503AtOnce`
+  - `failNextAnswers503ForExactlyThatManyCallsThenReturnsToTheMode`
+  - `slowModeAnswersAfterTheConfiguredDelay`
+  - `hangModeIsSilentLongerThanAClientWillWaitButStillCountsTheCall`
+  - `theAdminEndpointSwitchesTheModeAtRunTime`
+  - `anUnknownModeIs400AndAGetOnTheAdminEndpointIs405`
+  - `maxInFlightRecordsTheMostCallsServedAtOnce`
+  - `resetZeroesTheCountersAndMetricsExposeThem`
+  - `modeNamesParseIgnoringCaseAndRejectNonsense`
+  - `theMainEntryPointStartsAProviderThatAnswersHealth`
+  - `hangLastsAsLongAsConfiguredAndThenAnswersEmptyJson`
+  - `jsonLogEscapesQuotesAndNewlines`
+
 ## Try it yourself
 
 1. Open a test and change an expected number, then run `./mvnw test -Dtest=<class>` and read the message: `expected: 6 but was: 5`.

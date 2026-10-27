@@ -45,10 +45,10 @@ max_line_length = off
 ```
 
 - `root = true`: stop looking in parent folders.
-- `[*]` applies to every file: UTF-8, Unix line endings (`lf`), a newline at the end of the file, trailing spaces removed, spaces not tabs, 4 spaces per indent level.
+- `[*]` is a section for every file name. Its settings: `charset = utf-8` (how characters are stored as bytes), `end_of_line = lf` (Unix line endings; Windows would use `crlf`), `insert_final_newline = true` (a line break at the end of the file), `trim_trailing_whitespace = true` (remove spaces at the ends of lines), `indent_style = space` (use spaces, not tab characters) and `indent_size = 4` (four spaces per indent level).
 - `[*.{yml,yaml,json,xml,toml}]` overrides the indent size to 2 for those formats.
 - `[Makefile]` uses real tabs, because `make` requires a tab before each recipe line.
-- `[*.md]` keeps trailing spaces (two spaces at the end of a line mean a line break in some Markdown) and has no line-length limit.
+- `[*.md]` (Markdown files) sets `trim_trailing_whitespace = false`, because two spaces at the end of a line mean a line break in some Markdown, and `max_line_length = off`, so long lines are not wrapped.
 
 ## Try it yourself
 

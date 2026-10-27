@@ -18,6 +18,8 @@ Docker Compose runs several containers as one stack, described in one file, `doc
 
 ## How it works underneath
 
+Words first. A **container** is a running, isolated copy of an image (see `dockerfile.md`). A **network** in Docker is a private virtual network that containers join; on it each container can reach the others by name. A **volume** is storage that Docker keeps outside any container, so data survives when a container is replaced. A **bind mount** (`./file:/path/in/container`) makes a file from your folder visible inside the container. A **capability** is one special privilege of the Linux kernel (such as changing network settings); containers normally get a default set, and `cap_drop: ALL` removes them all. **tmpfs** is a folder that lives in memory and disappears when the container stops. A **health check** is a command Docker runs inside a container again and again; the container is "healthy" when it succeeds.
+
 1. Compose reads the YAML (see `yaml.md`) and the `.env` file next to it.
 2. `${NAME:-default}` inside the file is replaced by the environment value or the default. `${NAME:?message}` fails with the message if the value is missing.
 3. For a service with `build:`, compose builds the image from the Dockerfile; with `image:`, it pulls it.
@@ -94,13 +96,13 @@ services:
       - ./observability/price-service-dashboard.json:/var/lib/plainround-dashboards/price-service-dashboard.json:ro
 ```
 
-- `provider:` built from `provider/Dockerfile`, published on 18103. Its health check is a bash one-liner (see `bash.md`).
+- `provider:` is built from `provider/Dockerfile`: `build.context: .` sends the repository root to the builder and `build.dockerfile: provider/Dockerfile` names the recipe; `image:` names the result. `ports` publishes it on host port 18103. Its health check is a bash one-liner (see `bash.md`).
 - `price-service:` built from `price-service/Dockerfile`, waits for the provider to be healthy (`depends_on ... service_healthy`), and gets `PRICE_PROVIDER_BASE_URL: http://provider:8081` (the provider's service name as a host name), the protection mode, the concurrency limit and the addresses where it sends traces and metrics (`http://otel-lgtm:4318/...`).
 - `otel-lgtm:` the Grafana image that bundles Grafana, Prometheus, Tempo and an OTLP receiver. Four ports are published; two `volumes` mount the dashboard provisioning file and the dashboard JSON, read-only (`:ro`).
 
 - `read_only: true` makes the container's root filesystem read-only; `tmpfs: - /tmp` gives it one writable in-memory folder. `cap_drop: - ALL` removes every Linux capability (special privileges). `security_opt: - no-new-privileges:true` stops a process from gaining privileges. Together they are least privilege for the container.
 - `stop_grace_period: 30s` is how long Docker waits after sending the stop signal before killing the process; it is longer than the application's 20 second graceful shutdown.
-- `healthcheck: test: ["CMD", "bash", "-c", "..."]` runs bash in the container (the Java image has no `curl`): it opens a TCP connection to the application's own port with `exec 3<>/dev/tcp/localhost/8080`, writes an HTTP request, and `grep -q '"status":"UP"'` passes only on a healthy answer. `interval`, `timeout`, `retries` and `start_period` set the rhythm.
+- `healthcheck: test: ["CMD", "bash", "-c", "..."]` runs bash in the container (the Java image has no `curl`): it opens a TCP connection to the application's own port with `exec 3<>/dev/tcp/localhost/8080`, writes an HTTP request, and `grep -q '"status":"UP"'` passes only on a healthy answer. The numbers: `interval` is how often the check runs; `timeout` is how long one run may take before it counts as failed; `retries` is how many failed runs in a row mark the container unhealthy (or, while starting, how many tries `--wait` allows); `start_period` is a grace time at the start during which failures do not count.
 
 ## Try it yourself
 

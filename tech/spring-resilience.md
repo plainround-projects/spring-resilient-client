@@ -106,6 +106,14 @@ static class Slow {
 
 Retries are counted by an independent witness. `PriceServiceBehaviorIT.retriesAtMostThreeCallsTotalOn503` switches the provider to `fail503` and asserts the **provider's own counter** reads 3 for one price request; the timeout test asserts it reads 1.
 
+**Every production class that uses the resilience annotations or the exceptions they throw:**
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderCall.java` | One protected attempt to ask the provider for a price. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderErrors.java` | Turns what the HTTP client and the resilience proxies throw into the domain's three named provider failures. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ResilienceConfig.java` | Switches on Spring Framework's own resilience annotations (`@Retryable`, `@ConcurrencyLimit`), the package `org.springframework.resilience.annotation`, not the older separate Spring Retry library. |
+
 ## Try it yourself
 
 1. `./mvnw test -pl price-service -Dtest=ResilienceAnnotationsTest` runs the annotations alone.

@@ -19,6 +19,8 @@ The lesson is about Spring, and Spring is a Java framework. This repository is w
 
 ## How it works underneath
 
+A few more words used below. A **thread** is one line of execution inside a running program; a program can run many at once, and a web server uses one per request. An **exception** is an object a method throws when something goes wrong; it travels up the chain of callers until some code catches it, and if none does the thread ends with an error. **`null`** is the value of a reference that points to nothing. A **generic type** such as `List<Book>` is a list that holds only books; the part in angle brackets is a type parameter. `static` means "belongs to the class, not to one object"; `final` on a field means "set once, never changed"; `private` means "visible only inside this class". `Optional<T>` is a box that holds a value or is empty, used instead of `null` for "maybe nothing".
+
 1. `javac` reads `.java` files and writes `.class` files. In this repository Maven calls it for you.
 2. A **package** is a folder of classes. The line `package dev.plainround.price.domain;` at the top of a file says which folder the class belongs to.
 3. A **class** describes a kind of object: its data (fields) and its actions (methods). A **record** is a short form of a class that only holds data and cannot change after it is built. An **interface** lists methods without writing their code; other classes promise to provide them.
@@ -90,6 +92,139 @@ return switch (exception) {
 **Checked and unchecked exceptions.** All the project's errors extend `RuntimeException` (unchecked): the compiler does not force every caller to catch them. Each has a name that says what went wrong, such as `ProviderTimeout`, and one place (the "advice" class) turns them into HTTP answers.
 
 **Compiler settings.** The build runs `javac` with `-Xlint:all -Werror`: every warning becomes an error. That keeps unchecked casts and deprecated calls out of the code.
+
+**Every Java file in this repository, and what it is.** The descriptions below are the first sentence of each class's own documentation comment (the `/** ... */` block above the class, called Javadoc).
+
+| File | What it is |
+| --- | --- |
+| `loadgen/src/main/java/dev/plainround/loadgen/LoadMain.java` | Command line: `java -jar loadgen.jar --target http://host/price/{sku` --skus 10 --rps 100 --seconds 30 [--side http://host/skus/sku-1 --side-rps 10]}. |
+| `loadgen/src/main/java/dev/plainround/loadgen/LoadRunner.java` | Sends requests at a fixed rate whether or not the earlier ones have come back (an open loop), so a slow target shows up as latency instead of quietly lowering the load. |
+| `loadgen/src/main/java/dev/plainround/loadgen/Report.java` | The outcome of one load run against one target. |
+| `price-service/src/main/java/dev/plainround/price/PriceServiceApplication.java` | Entry point of the price service. |
+| `price-service/src/main/java/dev/plainround/price/application/CatalogService.java` | Reads the product catalog, which does not depend on the provider. |
+| `price-service/src/main/java/dev/plainround/price/application/PriceService.java` | Prices a SKU: a fresh quote when the provider answers, the last good one, labeled stale, when it does not. |
+| `price-service/src/main/java/dev/plainround/price/domain/Catalog.java` | Port: the products the shop sells. |
+| `price-service/src/main/java/dev/plainround/price/domain/CatalogEntry.java` | A product the shop sells. |
+| `price-service/src/main/java/dev/plainround/price/domain/NoPriceAvailable.java` | The provider failed and there is no recent quote to fall back on. |
+| `price-service/src/main/java/dev/plainround/price/domain/PriceResult.java` | What the price API answers: the price, whether it is the last one we knew rather than a fresh one, and its age. |
+| `price-service/src/main/java/dev/plainround/price/domain/ProviderBusy.java` | Too many calls to the provider are already in flight; this one was refused at once instead of queueing. |
+| `price-service/src/main/java/dev/plainround/price/domain/ProviderFailure.java` | The provider could not give a price right now. |
+| `price-service/src/main/java/dev/plainround/price/domain/ProviderTimeout.java` | The provider did not answer within the read or connect timeout. |
+| `price-service/src/main/java/dev/plainround/price/domain/ProviderUnavailable.java` | The provider said it cannot serve (503), could not be reached, or sent nothing usable. |
+| `price-service/src/main/java/dev/plainround/price/domain/Quote.java` | A price the provider gave us at a moment in time. |
+| `price-service/src/main/java/dev/plainround/price/domain/QuoteCache.java` | Port: the last good quote per SKU, remembered so it can be served, labeled stale, while the provider is down. |
+| `price-service/src/main/java/dev/plainround/price/domain/QuoteSource.java` | Port: where fresh quotes come from. |
+| `price-service/src/main/java/dev/plainround/price/domain/SkuNotFound.java` | The catalog has no product with the requested code. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/CacheProperties.java` | How long a good quote may be served stale, and how many are remembered. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ClockConfig.java` | The one place the real clock is created; tests replace this bean. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/HttpQuoteSource.java` | Adapter: the quote port over the protected provider call. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/InMemoryCatalog.java` | Ten fixed products, `sku-0` to `sku-9`: the catalog the shop's other endpoints serve. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/InMemoryQuoteCache.java` | Remembers the last good quote per SKU in memory. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/NoQuoteCache.java` | Remembers nothing: the "before" run of the benchmark (`price.protection=none`) has no cache. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderCall.java` | One protected attempt to ask the provider for a price. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderClientConfig.java` | Builds the RestClient for the provider, with a connect timeout and a read timeout on every call. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderErrors.java` | Turns what the HTTP client and the resilience proxies throw into the domain's three named provider failures. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderProperties.java` | Where the provider is and how long a call may take. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ResilienceConfig.java` | Switches on Spring Framework's own resilience annotations (`@Retryable`, `@ConcurrencyLimit`), the package `org.springframework.resilience.annotation`, not the older separate Spring Retry library. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/UnprotectedQuoteSource.java` | The "before" of the lesson's before-and-after table, selected with `price.protection=none`: a plain call with no timeout, no retry, no concurrency limit and no cache. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/CatalogController.java` | HTTP face of the catalog: an endpoint that never calls the provider, used to show the provider's sickness does not spread. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceController.java` | HTTP face of pricing. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceResponse.java` | A price as the API shows it. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/ProviderExceptionHandler.java` | The one place errors become `application/problem+json`. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/TraceIdFilter.java` | Puts the id of the request's trace in the `X-Trace-Id` response header, so a caller (or the README's trace capture) can find exactly this request in the trace backend. |
+| `provider/src/main/java/dev/plainround/provider/FakeProvider.java` | A quote provider you control. |
+| `provider/src/main/java/dev/plainround/provider/JsonLog.java` | One JSON object per line on standard output: level, message and time, nothing else. |
+| `provider/src/main/java/dev/plainround/provider/ProviderMain.java` | Starts the fake provider on `PORT` (default 8081) and stops it when the process is told to. |
+| `provider/src/main/java/dev/plainround/provider/ProviderMode.java` | How the fake provider answers a quote request. |
+
+**Every test class, with the tests inside it** (a test method's name is a sentence about behavior; see `junit.md`):
+
+- `loadgen/src/test/java/dev/plainround/loadgen/LoadgenTest.java`:
+  - `percentilesUseTheNearestRank`
+  - `anEmptyRunReportsZeros`
+  - `theJsonLineCarriesEveryNumber`
+  - `optionsParseInPairs`
+  - `theRunnerHoldsTheRateAndCountsErrorsAndStaleAnswers`
+  - `mainRunsThePriceTargetAndTheSideTargetAndPrintsOneJsonLineEach`
+  - `anUnreachableTargetCountsAsErrors`
+  - `aMissingTargetIsRejected`
+- `price-service/src/test/java/dev/plainround/price/ApplicationConfigurationTest.java`:
+  - `everyProviderCallHasBothTimeoutsAndTheRetryRulesFromTheLesson`
+  - `virtualThreadsJsonLogsGracefulShutdownAndFullTracingAreOn`
+- `price-service/src/test/java/dev/plainround/price/ArchitectureTest.java`:
+  - `layersOnlyDependInward`
+  - `domainDependsOnNothingButTheJdk`
+  - `applicationKnowsOnlyTheDomainTheJdkAndLogging`
+  - `noFieldInjection`
+  - `controllersLiveInTheInterfacesLayer`
+  - `noPackageCycles`
+  - `noSelfInvocationOfProxiedMethods`
+- `price-service/src/test/java/dev/plainround/price/PriceServiceBehaviorIT.java`:
+  - `healthyProviderGivesAFreshPriceWithOneCall`
+  - `retriesAtMostThreeCallsTotalOn503`
+  - `doesNotRetryOnATimeoutAndAnswers504InAboutTheReadTimeout`
+  - `aSlowProviderBeyondTheTimeoutIsNotRetriedEither`
+  - `aRecentlyPricedSkuIsServedStaleWhenTheProviderIsDownAndANeverPricedOneIs503`
+  - `aQuoteOlderThanSixtySecondsIsNotServed`
+  - `staleServingAlsoCoversATimeout`
+  - `inFlightProviderCallsNeverExceedTheLimitWhileOtherEndpointsKeepAnswering`
+  - `metricsAndTraceIdsAreExposed`
+  - `healthIsUpWithLivenessAndReadinessProbes`
+- `price-service/src/test/java/dev/plainround/price/application/PriceServiceTest.java`:
+  - `aFreshQuoteIsReturnedAndRemembered`
+  - `whenTheProviderFailsTheLastGoodQuoteIsServedStaleWithItsAge`
+  - `aSkuNeverPricedIsNoPriceAvailableAndKeepsTheReason`
+  - `theCatalogServiceListsAndNamesAMissingSku`
+- `price-service/src/test/java/dev/plainround/price/domain/DomainTest.java`:
+  - `aFreshResultIsNotStaleAndHasNoAge`
+  - `aStaleResultCarriesTheAgeOfTheQuote`
+  - `aQuoteWithoutAPositivePriceIsAProviderFailure`
+  - `theNamedFailuresSayWhy`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/InMemoryQuoteCacheTest.java`:
+  - `aQuoteIsServedUntilSixtySecondsAfterItWasWritten`
+  - `readingDoesNotExtendTheLifeOfAQuote`
+  - `aNewQuoteReplacesTheOldOneAndRestartsTheClock`
+  - `theOldestEntryIsDroppedWhenTheBoundIsReached`
+  - `hitsAndMissesAreCounted`
+  - `theUnprotectedVariantsRememberNothingAndTheCatalogHasTenProducts`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderErrorsTest.java`:
+  - `aTimeoutInsideAnIoErrorIsAProviderTimeout`
+  - `aRefusedConnectionIsUnavailableNotATimeout`
+  - `aRejectionByTheConcurrencyLimitIsBusy`
+  - `aServerErrorAndAnythingElseAreUnavailable`
+  - `aDomainFailurePassesThroughUnchanged`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderPropertiesTest.java`:
+  - `defaultsAreOneSecondToConnectAndTwoToRead`
+  - `aZeroOrNegativeTimeoutStopsTheApplicationAtStartup`
+  - `aMissingBaseUrlOrAnAbsurdCacheBoundStopsTheApplication`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ResilienceAnnotationsTest.java`:
+  - `twentyConcurrentCallsAgainstALimitOfThreeNeverShowMoreThanThreeInFlight`
+  - `theRejectPolicyRefusesTheExcessAtOnceInsteadOfQueueing`
+  - `retryableStopsAfterTheConfiguredNumberOfRetriesAndOnlyForTheNamedException`
+- `price-service/src/test/java/dev/plainround/price/interfaces/web/PriceControllerTest.java`:
+  - `aFreshPriceIs200WithStaleFalse`
+  - `aStalePriceIs200WithTheLabelAndTheAge`
+  - `aNeverPricedSkuWithAFailingProviderIs503WithRetryAfter`
+  - `aRefusedCallIsAlsoA503`
+  - `aNeverPricedSkuWhoseCallTimedOutIs504`
+  - `aSkuWithOddCharactersIs400NamingTheParameter`
+  - `theCatalogListsProductsAndNamesAMissingOne`
+  - `anUnexpectedErrorIs500WithoutLeakingTheMessage`
+- `price-service/src/test/java/dev/plainround/price/support/MutableClock.java`: a helper used by the tests
+- `provider/src/test/java/dev/plainround/provider/FakeProviderTest.java`:
+  - `normalModeAnswers200WithADeterministicPriceAndCountsTheCall`
+  - `fail503ModeAnswers503AtOnce`
+  - `failNextAnswers503ForExactlyThatManyCallsThenReturnsToTheMode`
+  - `slowModeAnswersAfterTheConfiguredDelay`
+  - `hangModeIsSilentLongerThanAClientWillWaitButStillCountsTheCall`
+  - `theAdminEndpointSwitchesTheModeAtRunTime`
+  - `anUnknownModeIs400AndAGetOnTheAdminEndpointIs405`
+  - `maxInFlightRecordsTheMostCallsServedAtOnce`
+  - `resetZeroesTheCountersAndMetricsExposeThem`
+  - `modeNamesParseIgnoringCaseAndRejectNonsense`
+  - `theMainEntryPointStartsAProviderThatAnswersHealth`
+  - `hangLastsAsLongAsConfiguredAndThenAnswersEmptyJson`
+  - `jsonLogEscapesQuotesAndNewlines`
 
 ## Try it yourself
 

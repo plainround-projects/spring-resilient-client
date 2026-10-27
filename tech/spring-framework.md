@@ -81,6 +81,29 @@ static final ArchRule noFieldInjection =
 
 `ArchitectureTest` also contains a rule that fails if a class calls a `@Transactional`, `@Retryable` or `@ConcurrencyLimit` method of its own class.
 
+**Every production class that Spring creates as a bean** (marked `@Component`, `@Service`, `@Repository`, `@RestController`, `@RestControllerAdvice` or `@Configuration`):
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/PriceServiceApplication.java` | Entry point of the price service. |
+| `price-service/src/main/java/dev/plainround/price/application/CatalogService.java` | Reads the product catalog, which does not depend on the provider. |
+| `price-service/src/main/java/dev/plainround/price/application/PriceService.java` | Prices a SKU: a fresh quote when the provider answers, the last good one, labeled stale, when it does not. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/CacheProperties.java` | How long a good quote may be served stale, and how many are remembered. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ClockConfig.java` | The one place the real clock is created; tests replace this bean. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/HttpQuoteSource.java` | Adapter: the quote port over the protected provider call. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/InMemoryCatalog.java` | Ten fixed products, `sku-0` to `sku-9`: the catalog the shop's other endpoints serve. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/InMemoryQuoteCache.java` | Remembers the last good quote per SKU in memory. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/NoQuoteCache.java` | Remembers nothing: the "before" run of the benchmark (`price.protection=none`) has no cache. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderCall.java` | One protected attempt to ask the provider for a price. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderClientConfig.java` | Builds the RestClient for the provider, with a connect timeout and a read timeout on every call. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderProperties.java` | Where the provider is and how long a call may take. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ResilienceConfig.java` | Switches on Spring Framework's own resilience annotations (`@Retryable`, `@ConcurrencyLimit`), the package `org.springframework.resilience.annotation`, not the older separate Spring Retry library. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/UnprotectedQuoteSource.java` | The "before" of the lesson's before-and-after table, selected with `price.protection=none`: a plain call with no timeout, no retry, no concurrency limit and no cache. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/CatalogController.java` | HTTP face of the catalog: an endpoint that never calls the provider, used to show the provider's sickness does not spread. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceController.java` | HTTP face of pricing. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/ProviderExceptionHandler.java` | The one place errors become `application/problem+json`. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/TraceIdFilter.java` | Puts the id of the request's trace in the `X-Trace-Id` response header, so a caller (or the README's trace capture) can find exactly this request in the trace backend. |
+
 ## Try it yourself
 
 1. Start the application and list the beans: run with `--debug` and search the log for `ProviderCall`.

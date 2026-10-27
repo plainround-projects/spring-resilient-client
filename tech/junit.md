@@ -66,6 +66,95 @@ static void startProvider() throws IOException {
 
 `@BeforeAll` on a **static** method runs once before all tests of the class: it starts the fake provider once. `@AfterAll` stops it. `@BeforeEach` resets the provider's mode before every test.
 
+**Every test class in this repository, with the test methods JUnit runs in it:**
+
+- `loadgen/src/test/java/dev/plainround/loadgen/LoadgenTest.java`:
+  - `percentilesUseTheNearestRank`
+  - `anEmptyRunReportsZeros`
+  - `theJsonLineCarriesEveryNumber`
+  - `optionsParseInPairs`
+  - `theRunnerHoldsTheRateAndCountsErrorsAndStaleAnswers`
+  - `mainRunsThePriceTargetAndTheSideTargetAndPrintsOneJsonLineEach`
+  - `anUnreachableTargetCountsAsErrors`
+  - `aMissingTargetIsRejected`
+- `price-service/src/test/java/dev/plainround/price/ApplicationConfigurationTest.java`:
+  - `everyProviderCallHasBothTimeoutsAndTheRetryRulesFromTheLesson`
+  - `virtualThreadsJsonLogsGracefulShutdownAndFullTracingAreOn`
+- `price-service/src/test/java/dev/plainround/price/ArchitectureTest.java`:
+  - `layersOnlyDependInward`
+  - `domainDependsOnNothingButTheJdk`
+  - `applicationKnowsOnlyTheDomainTheJdkAndLogging`
+  - `noFieldInjection`
+  - `controllersLiveInTheInterfacesLayer`
+  - `noPackageCycles`
+  - `noSelfInvocationOfProxiedMethods`
+- `price-service/src/test/java/dev/plainround/price/PriceServiceBehaviorIT.java`:
+  - `healthyProviderGivesAFreshPriceWithOneCall`
+  - `retriesAtMostThreeCallsTotalOn503`
+  - `doesNotRetryOnATimeoutAndAnswers504InAboutTheReadTimeout`
+  - `aSlowProviderBeyondTheTimeoutIsNotRetriedEither`
+  - `aRecentlyPricedSkuIsServedStaleWhenTheProviderIsDownAndANeverPricedOneIs503`
+  - `aQuoteOlderThanSixtySecondsIsNotServed`
+  - `staleServingAlsoCoversATimeout`
+  - `inFlightProviderCallsNeverExceedTheLimitWhileOtherEndpointsKeepAnswering`
+  - `metricsAndTraceIdsAreExposed`
+  - `healthIsUpWithLivenessAndReadinessProbes`
+- `price-service/src/test/java/dev/plainround/price/application/PriceServiceTest.java`:
+  - `aFreshQuoteIsReturnedAndRemembered`
+  - `whenTheProviderFailsTheLastGoodQuoteIsServedStaleWithItsAge`
+  - `aSkuNeverPricedIsNoPriceAvailableAndKeepsTheReason`
+  - `theCatalogServiceListsAndNamesAMissingSku`
+- `price-service/src/test/java/dev/plainround/price/domain/DomainTest.java`:
+  - `aFreshResultIsNotStaleAndHasNoAge`
+  - `aStaleResultCarriesTheAgeOfTheQuote`
+  - `aQuoteWithoutAPositivePriceIsAProviderFailure`
+  - `theNamedFailuresSayWhy`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/InMemoryQuoteCacheTest.java`:
+  - `aQuoteIsServedUntilSixtySecondsAfterItWasWritten`
+  - `readingDoesNotExtendTheLifeOfAQuote`
+  - `aNewQuoteReplacesTheOldOneAndRestartsTheClock`
+  - `theOldestEntryIsDroppedWhenTheBoundIsReached`
+  - `hitsAndMissesAreCounted`
+  - `theUnprotectedVariantsRememberNothingAndTheCatalogHasTenProducts`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderErrorsTest.java`:
+  - `aTimeoutInsideAnIoErrorIsAProviderTimeout`
+  - `aRefusedConnectionIsUnavailableNotATimeout`
+  - `aRejectionByTheConcurrencyLimitIsBusy`
+  - `aServerErrorAndAnythingElseAreUnavailable`
+  - `aDomainFailurePassesThroughUnchanged`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderPropertiesTest.java`:
+  - `defaultsAreOneSecondToConnectAndTwoToRead`
+  - `aZeroOrNegativeTimeoutStopsTheApplicationAtStartup`
+  - `aMissingBaseUrlOrAnAbsurdCacheBoundStopsTheApplication`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ResilienceAnnotationsTest.java`:
+  - `twentyConcurrentCallsAgainstALimitOfThreeNeverShowMoreThanThreeInFlight`
+  - `theRejectPolicyRefusesTheExcessAtOnceInsteadOfQueueing`
+  - `retryableStopsAfterTheConfiguredNumberOfRetriesAndOnlyForTheNamedException`
+- `price-service/src/test/java/dev/plainround/price/interfaces/web/PriceControllerTest.java`:
+  - `aFreshPriceIs200WithStaleFalse`
+  - `aStalePriceIs200WithTheLabelAndTheAge`
+  - `aNeverPricedSkuWithAFailingProviderIs503WithRetryAfter`
+  - `aRefusedCallIsAlsoA503`
+  - `aNeverPricedSkuWhoseCallTimedOutIs504`
+  - `aSkuWithOddCharactersIs400NamingTheParameter`
+  - `theCatalogListsProductsAndNamesAMissingOne`
+  - `anUnexpectedErrorIs500WithoutLeakingTheMessage`
+- `price-service/src/test/java/dev/plainround/price/support/MutableClock.java`: a helper used by the tests
+- `provider/src/test/java/dev/plainround/provider/FakeProviderTest.java`:
+  - `normalModeAnswers200WithADeterministicPriceAndCountsTheCall`
+  - `fail503ModeAnswers503AtOnce`
+  - `failNextAnswers503ForExactlyThatManyCallsThenReturnsToTheMode`
+  - `slowModeAnswersAfterTheConfiguredDelay`
+  - `hangModeIsSilentLongerThanAClientWillWaitButStillCountsTheCall`
+  - `theAdminEndpointSwitchesTheModeAtRunTime`
+  - `anUnknownModeIs400AndAGetOnTheAdminEndpointIs405`
+  - `maxInFlightRecordsTheMostCallsServedAtOnce`
+  - `resetZeroesTheCountersAndMetricsExposeThem`
+  - `modeNamesParseIgnoringCaseAndRejectNonsense`
+  - `theMainEntryPointStartsAProviderThatAnswersHealth`
+  - `hangLastsAsLongAsConfiguredAndThenAnswersEmptyJson`
+  - `jsonLogEscapesQuotesAndNewlines`
+
 ## Try it yourself
 
 1. `./mvnw test` runs the `*Test` classes and prints one line per class.

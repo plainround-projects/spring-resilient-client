@@ -22,6 +22,8 @@ The lesson asks for a standard Java build with the wrapper checked in. One comma
 
 ## How it works underneath
 
+A **library** is code written by someone else that your program uses; in Java it is shipped as a **jar** (a zip file of compiled classes). The **classpath** is the list of jars and folders Java searches for classes when it compiles or runs. A **repository** here means a server of jars (Maven Central) or the cache of downloaded jars on your disk (`~/.m2`), not a Git repository. A **goal** is one task a plugin can perform, written `plugin:goal` (for example `spotless:check`).
+
 1. You run `./mvnw verify`. The script reads `.mvn/wrapper/maven-wrapper.properties`, downloads that Maven version into `~/.m2/wrapper` if it is not there yet, and runs it.
 2. Maven reads `pom.xml`. If the file has a `<parent>`, Maven first reads the parent's POM and inherits its settings.
 3. Maven works through a **lifecycle**: a fixed list of **phases**. The ones that matter here, in order: `validate`, `compile`, `test`, `package`, `verify`. Asking for a phase runs every phase before it.
@@ -31,16 +33,19 @@ The lesson asks for a standard Java build with the wrapper checked in. One comma
 
 ## Walkthrough of this repository's use
 
-**The wrapper.**
+**The wrapper.** The script `mvnw` is a shell script (see `bash.md`) that reads one properties file:
 
 ```properties
+wrapperVersion=3.3.4
 distributionType=only-script
 distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.11/apache-maven-3.9.11-bin.zip
 ```
 
-`distributionType=only-script` means the wrapper does not carry a `.jar` file; the script does the download itself. `distributionUrl` is the exact Maven that gets downloaded (3.9.11), so every machine and CI use the same one.
+- `wrapperVersion=3.3.4` is the version of the wrapper scripts themselves.
+- `distributionType=only-script` means the wrapper does not carry a `.jar` file in the repository; the script does the download itself with tools every system has.
+- `distributionUrl=...apache-maven-3.9.11-bin.zip` is the exact Maven that gets downloaded (3.9.11), so every machine and CI use the same one. `mvnw.cmd` is the same script for Windows.
 
-**The JVM options.**
+**The JVM options for Maven itself.** The file `.mvn/jvm.config` has one option per line, and Maven passes them to the Java process that runs Maven:
 
 ```properties
 --add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
@@ -51,9 +56,9 @@ distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-mav
 --add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED
 ```
 
-The Spotless plugin (see `spotless-google-java-format.md`) uses internals of the Java compiler. Newer JDKs close those internals unless you open them. `--add-exports=module/package=ALL-UNNAMED` opens one internal package to all code. Maven reads this file on every start and passes the lines to the JVM.
+The Spotless plugin formats code with a formatter that reads the Java compiler's internal classes. Since Java 16 those internals are hidden unless you open them. `--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED` says: let all code (`ALL-UNNAMED`) use the package `com.sun.tools.javac.api` of the module `jdk.compiler`. There is one line for each of the six internal packages the formatter touches: `api`, `code`, `file`, `parser`, `tree`, `util`. Without the file the formatter fails with `InvocationTargetException`.
 
-**The parent.**
+**The POM, from the top.** The first lines (`<?xml ...?>`, `<project ...>`, `<modelVersion>`) are explained in `xml.md`.
 
 ```xml
 <parent>
@@ -64,7 +69,20 @@ The Spotless plugin (see `spotless-google-java-format.md`) uses internals of the
 </parent>
 ```
 
-The root POM inherits from Spring Boot's parent, and the three module POMs inherit from the root (`price-service/pom.xml` has `<parent>` with `spring-resilient-client`). So a plugin version is written once, in the root, and applies everywhere. The root's `<packaging>pom</packaging>` and its `<modules>` list say "this project builds nothing itself; it builds these three":
+The root POM inherits from Spring Boot's parent (tested library versions, default plugin settings, UTF-8 source encoding; `<relativePath/>` tells Maven to download the parent). The three module POMs inherit from the root, so a plugin version is written once and applies everywhere.
+
+```xml
+<groupId>dev.plainround</groupId>
+<artifactId>spring-resilient-client</artifactId>
+<version>0.1.0</version>
+<packaging>pom</packaging>
+<name>spring-resilient-client</name>
+<description>A price service that stays fast and honest while its provider is slow, failing or silent.</description>
+
+<modules>
+```
+
+Coordinates, then `<packaging>pom</packaging>`: this project builds no jar of its own; it only groups modules. The list:
 
 ```xml
 <modules>
@@ -76,7 +94,7 @@ The root POM inherits from Spring Boot's parent, and the three module POMs inher
 
 Maven works out the build order from the dependencies between modules: `provider` first, because `price-service` uses it in its tests.
 
-**Properties.** `<properties>` holds named values reused below.
+**Properties.** `<properties>` holds named values reused below:
 
 ```xml
 <properties>
@@ -92,21 +110,58 @@ Maven works out the build order from the dependencies between modules: `provider
 </properties>
 ```
 
-`java.version` is read by Spring Boot's parent, which passes it to the compiler as `maven.compiler.release`. `--release 25` is stricter than `-source`/`-target`: the code can only call library methods that exist in Java 25. The other lines pin plugin and tool versions so that nothing changes by surprise.
+- `java.version` (25) is read by Spring Boot's parent and passed to the compiler as `maven.compiler.release`.
+- `project.build.sourceEncoding` says source files are UTF-8.
+- `archunit.version`, `spotless.version`, `google-java-format.version`, `checkstyle-plugin.version`, `checkstyle.version` and `jacoco.version` pin tools that Spring Boot's parent does not manage.
+- `jacoco.bundle.minimum` (0.85) is the coverage limit for every module; `price-service/pom.xml` adds `jacoco.domain.minimum` (0.95) for its `domain` package.
 
-**Dependencies.**
+**Dependencies.** A dependency is a library the project uses. Every one is listed here. A **scope** says where it is needed: `compile` (the default: to build and run), `runtime` (only when running, not to compile), `test` (only for tests; it is not in the final application). Spring Boot **starters** (`spring-boot-starter-...`) are bundles: one line pulls in a library and its usual companions. There is no `<version>` on most because the parent decides.
 
-```xml
-<dependencies>
-  <dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-webmvc</artifactId>
-  </dependency>
-```
+**price-service**
 
-Each `<dependency>` is a library. Spring Boot **starters** (`spring-boot-starter-...`) are bundles: one line pulls in the library and its usual companions. No `<version>` because the parent decides. Test libraries use `<scope>test</scope>`, so they are not in the final application.
+| Dependency | Scope | What it brings |
+| --- | --- | --- |
+| `spring-boot-starter-webmvc` | compile | Tomcat (the embedded web server), Spring Web MVC (controllers) and Jackson (JSON) |
+| `spring-boot-starter-restclient` | compile | `RestClient`, the HTTP client the price service uses to call the provider |
+| `spring-boot-starter-validation` | compile | Bean Validation (Hibernate Validator): `@NotBlank`, `@Min`, `@Valid` and friends |
+| `spring-boot-starter-actuator` | compile | the health, beans and metrics endpoints |
+| `spring-boot-starter-opentelemetry` | compile | tracing with OpenTelemetry and the OTLP export of traces and metrics |
+| `micrometer-registry-prometheus` | compile | the `/actuator/prometheus` text format |
+| `provider` | test | the fake provider module, used in the price service's tests as a real in-process server |
+| `spring-boot-starter-test` | test | JUnit, AssertJ, Mockito, JsonPath and Spring's test support |
+| `spring-boot-starter-webmvc-test` | test | `@WebMvcTest`, `MockMvc` and `@MockitoBean` for web-layer tests |
+| `archunit-junit5` | test | ArchUnit rules that run as JUnit tests |
 
-**The compiler plugin.**
+**provider** (plain Java; its tests need only JUnit and AssertJ)
+
+| Dependency | Scope | What it brings |
+| --- | --- | --- |
+| `junit-jupiter` | test | the JUnit test framework (this module has no Spring) |
+| `assertj-core` | test | AssertJ assertions (this module has no Spring) |
+
+**loadgen** (plain Java; the same two test libraries)
+
+| Dependency | Scope | What it brings |
+| --- | --- | --- |
+| `junit-jupiter` | test | the JUnit test framework (this module has no Spring) |
+| `assertj-core` | test | AssertJ assertions (this module has no Spring) |
+
+**Plugins.** Every plugin, each doing one job in the lifecycle:
+
+**Root POM (applies to all modules)**
+
+| Plugin | What it does here |
+| --- | --- |
+| `maven-compiler-plugin` | runs the Java compiler with the strict settings |
+| `maven-surefire-plugin` | runs the unit tests (`*Test`) |
+| `maven-failsafe-plugin` | runs the integration tests (`*IT`) and checks their result |
+| `jacoco-maven-plugin` | measures coverage and enforces the minimums |
+| `spotless-maven-plugin` | formats the Java files and checks the format |
+| `maven-checkstyle-plugin` | runs the Checkstyle rules |
+
+**price-service** adds `spring-boot-maven-plugin` (its `repackage` goal makes the runnable jar and leaves the `provider` test jar out of it). **provider** and **loadgen** add `maven-jar-plugin`, which writes the class named by the property `start-class` into the jar's manifest so `java -jar` knows where to start.
+
+The compiler plugin:
 
 ```xml
   <artifactId>maven-compiler-plugin</artifactId>
@@ -121,9 +176,21 @@ Each `<dependency>` is a library. Spring Boot **starters** (`spring-boot-starter
 </plugin>
 ```
 
-`<parameters>true</parameters>` keeps the names of method parameters in the bytecode, which Spring uses to report errors by parameter name. `-Xlint:all,-processing` turns on every compiler warning except the annotation-processing ones, and `-Werror` makes any warning fail the build.
+`<parameters>true</parameters>` keeps the names of method parameters in the bytecode, which Spring uses to report errors by parameter name. `<showWarnings>true</showWarnings>` prints warnings. The two `<arg>` lines are javac options: `-Xlint:all,-processing` turns on every compiler warning except the annotation-processing ones, and `-Werror` makes any warning fail the build.
 
-**Surefire and failsafe.** Surefire runs classes named `*Test` in the `test` phase. Failsafe runs `*IT` (integration tests, which start a whole application) in `integration-test` and fails the build in `verify`.
+Surefire and failsafe both get an `<argLine>`:
+
+```xml
+  <artifactId>maven-surefire-plugin</artifactId>
+  <configuration>
+    <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+  </configuration>
+</plugin>
+```
+
+`@{argLine}` is a **late placeholder**: JaCoCo sets the property `argLine` to the option that attaches its coverage agent, and Surefire fills it in when it starts the test JVM (a plain `${argLine}` would be read too early and lose the agent). `-XX:+EnableDynamicAgentLoading` silences a JDK warning about the Mockito agent. `-Xshare:off` avoids a JDK warning that appears when an agent is attached.
+
+Failsafe runs the `*IT` classes (integration tests, which start a whole application) in the `integration-test` phase and fails the build in `verify`:
 
 ```xml
   <artifactId>maven-failsafe-plugin</artifactId>
@@ -141,7 +208,9 @@ Each `<dependency>` is a library. Spring Boot **starters** (`spring-boot-starter
 </plugin>
 ```
 
-`@{argLine}` is a placeholder that JaCoCo fills with the option that attaches its coverage agent; without it, coverage of the integration tests would be lost. `-XX:+EnableDynamicAgentLoading` silences a JDK warning about the Mockito agent. `-Xshare:off` avoids a JDK warning when an agent is attached.
+The `<executions>` block binds two goals to the lifecycle: `integration-test` runs the tests and `verify` checks the result. Surefire needs no such block because Spring Boot's parent already binds it.
+
+The JaCoCo, Spotless and Checkstyle plugin blocks are explained in `jacoco.md`, `spotless-google-java-format.md` and `checkstyle.md`.
 
 ## Try it yourself
 

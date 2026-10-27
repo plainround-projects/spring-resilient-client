@@ -19,6 +19,8 @@ The lesson is about walking from an HTTP request to a method and back: how input
 
 ## How it works underneath
 
+HTTP in brief (more in `curl.md`): a **request** has a method (`GET`, `POST`, `PUT`, `DELETE`), a URL with a path and an optional query string, headers and an optional body; a **response** has a status code (2xx success, 4xx the caller erred, 5xx the server failed), headers and a body. A **servlet** is the Java standard for code that answers HTTP requests; Spring MVC is built on one servlet. A **filter** is code that sees every request and response before and after the rest. A **thread** is one line of execution; the server handles each request on its own thread.
+
 1. The embedded Tomcat accepts a TCP connection and parses the HTTP text into a request object.
 2. The request passes through the **filter chain**: classes that can look at or change every request and response before and after the rest (here: assign an id, add a trace id).
 3. A single servlet called the **DispatcherServlet** picks the controller method whose mapping matches the URL and method.
@@ -86,6 +88,16 @@ protected void doFilterInternal(
 ```
 
 It asks the tracer for the current span and, if there is one, copies its trace id into the `X-Trace-Id` response header. It is ordered to run just inside Spring's observation filter, where the span already exists.
+
+**Every production class that belongs to the web layer (controllers, request and answer records, the advice and the filters):**
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/CatalogController.java` | HTTP face of the catalog: an endpoint that never calls the provider, used to show the provider's sickness does not spread. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceController.java` | HTTP face of pricing. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceResponse.java` | A price as the API shows it. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/ProviderExceptionHandler.java` | The one place errors become `application/problem+json`. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/TraceIdFilter.java` | Puts the id of the request's trace in the `X-Trace-Id` response header, so a caller (or the README's trace capture) can find exactly this request in the trace backend. |
 
 ## Try it yourself
 

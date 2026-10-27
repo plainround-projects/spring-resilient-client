@@ -47,6 +47,23 @@ void whenTheProviderFailsTheLastGoodQuoteIsServedStaleWithItsAge() {
 
 The web-layer test replaces the services with mocks. The tracer is also a mock because the trace-id filter, which the web slice loads, needs one.
 
+**Every test class that creates mocks (`mock(...)`, `@MockitoBean`, `@Mock`), with its tests:**
+
+- `price-service/src/test/java/dev/plainround/price/application/PriceServiceTest.java`:
+  - `aFreshQuoteIsReturnedAndRemembered`
+  - `whenTheProviderFailsTheLastGoodQuoteIsServedStaleWithItsAge`
+  - `aSkuNeverPricedIsNoPriceAvailableAndKeepsTheReason`
+  - `theCatalogServiceListsAndNamesAMissingSku`
+- `price-service/src/test/java/dev/plainround/price/interfaces/web/PriceControllerTest.java`:
+  - `aFreshPriceIs200WithStaleFalse`
+  - `aStalePriceIs200WithTheLabelAndTheAge`
+  - `aNeverPricedSkuWithAFailingProviderIs503WithRetryAfter`
+  - `aRefusedCallIsAlsoA503`
+  - `aNeverPricedSkuWhoseCallTimedOutIs504`
+  - `aSkuWithOddCharactersIs400NamingTheParameter`
+  - `theCatalogListsProductsAndNamesAMissingOne`
+  - `anUnexpectedErrorIs500WithoutLeakingTheMessage`
+
 ## Try it yourself
 
 1. `./mvnw test -Dtest=PriceServiceTest -pl price-service`.

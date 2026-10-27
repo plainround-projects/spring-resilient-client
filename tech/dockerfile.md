@@ -19,6 +19,8 @@ The project rule says anything that serves traffic gets a Dockerfile with a pinn
 
 ## How it works underneath
 
+Words first. A **container image** is a read-only package: a small Linux filesystem plus the program and its Java runtime. A **container** is a running copy of an image, isolated from the rest of your machine: it sees its own files, its own processes and its own network address. **Docker** is the program (the Docker engine, running in the background) that builds images and runs containers. A **registry** (Docker Hub, GitHub Container Registry) is a server that stores images; `FROM` pulls from one. A **layer** is one step of a build, saved so that Docker can reuse it when nothing above it changed.
+
 1. `docker build` sends the **build context** (the folder, minus `.dockerignore` entries) to the Docker engine.
 2. `FROM image AS name` starts a stage from a base image. A second `FROM` starts a new, empty stage; `COPY --from=name` takes files from an earlier stage. Only the last stage becomes the image.
 3. `@sha256:...` after an image name is a **digest**: it pins the exact bytes, so a rebuild next year uses the same base. A tag like `21-jre-noble` can move.
@@ -62,6 +64,39 @@ ENTRYPOINT ["java", "-jar", "price-service-0.1.0.jar"]
 - `ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"`: read by every JVM: use up to 75 percent of the container's memory, and exit if memory runs out so the orchestrator can restart a clean process.
 
 - `ENTRYPOINT ["java", "-jar", "price-service-0.1.0.jar"]`: the JSON form runs the process directly, so it receives the stop signal (SIGTERM) and can shut down gracefully. After `extract`, the jar in `/app` is a small launcher that finds the layered libraries next to it.
+
+**The provider's Dockerfile** (the second image):
+
+```dockerfile
+FROM eclipse-temurin:25-jdk-noble@sha256:ba0f0e1a33864105e1d454e88105c617ab40f71062db1f306bf58be32a3f8e5e AS build
+WORKDIR /workspace
+COPY . .
+RUN --mount=type=cache,target=/root/.m2 ./mvnw -B -ntp -q -DskipTests -pl provider -am package
+
+FROM eclipse-temurin:25-jre-noble@sha256:3f2223fe04b750aa5a8179e29b5c9a1ddf7665fc9bb08bfe11ad01d143bc13a5
+RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --no-create-home app
+WORKDIR /app
+COPY --from=build --chown=app:app /workspace/provider/target/provider-0.1.0.jar provider.jar
+USER 10001:10001
+ENV PORT=8081 JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=50 -XX:+ExitOnOutOfMemoryError"
+EXPOSE 8081
+ENTRYPOINT ["java", "-jar", "provider.jar"]
+```
+
+It has the same shape with three differences: `-pl provider -am` builds only the provider; there is no layer extraction, because the provider is a plain jar with no libraries inside; and `COPY --from=build ... provider-0.1.0.jar provider.jar` copies that one file and renames it. `ENV PORT=8081` sets the port the provider listens on (its `main` reads the environment variable `PORT`), and `JAVA_TOOL_OPTIONS` uses 50 percent of the container's memory because this process is small. A **port** is the number a program listens on for network connections; `EXPOSE 8081` documents it.
+
+**`.dockerignore`.** When you run `docker build`, the whole folder (the **build context**) is sent to the Docker engine first. The file `.dockerignore` lists what must not be sent:
+
+```text
+**/target/
+.git/
+.env
+.idea/
+docs/
+*.md
+```
+
+Each line is a pattern. `target/` is Maven's build output (rebuilt inside the image); `.git/` is the history; `.env` holds local settings and possibly a password, which must never end up in an image layer; `.idea/` is editor state; `docs/` and `*.md` are not needed to build the image, and `**/target/` matches a `target` folder at any depth, which matters because the build copies the whole multi-module repository. A smaller context sends faster and keeps cache hits: changing a README does not invalidate the `COPY` layers.
 
 ## Try it yourself
 

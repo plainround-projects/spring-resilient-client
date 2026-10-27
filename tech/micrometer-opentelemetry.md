@@ -113,6 +113,15 @@ void metricsAndTraceIdsAreExposed() {
 
 It reads `/actuator/prometheus` and asserts the service's meters are there, and asserts the header matches `[0-9a-f]{32}`. In tests the export is switched off (`management.tracing.export.enabled=false`) so nothing needs a collector.
 
+**Every production class that records a metric or reads the current trace:**
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/HttpQuoteSource.java` | Adapter: the quote port over the protected provider call. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/InMemoryQuoteCache.java` | Remembers the last good quote per SKU in memory. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderCall.java` | One protected attempt to ask the provider for a price. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/TraceIdFilter.java` | Puts the id of the request's trace in the `X-Trace-Id` response header, so a caller (or the README's trace capture) can find exactly this request in the trace backend. |
+
 ## Try it yourself
 
 1. `curl -s localhost:18104/actuator/prometheus | grep price_provider` lists the service's meters.

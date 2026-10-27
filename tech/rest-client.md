@@ -89,6 +89,15 @@ public RestClient unprotectedRestClient(
 }
 ```
 
+**Every production class that touches the HTTP client or its errors:**
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderCall.java` | One protected attempt to ask the provider for a price. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderClientConfig.java` | Builds the RestClient for the provider, with a connect timeout and a read timeout on every call. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderErrors.java` | Turns what the HTTP client and the resilience proxies throw into the domain's three named provider failures. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/UnprotectedQuoteSource.java` | The "before" of the lesson's before-and-after table, selected with `price.protection=none`: a plain call with no timeout, no retry, no concurrency limit and no cache. |
+
 ## Try it yourself
 
 1. With the stack up (`make up`) and the provider hanging (`curl -X PUT 'localhost:18103/admin/mode?mode=hang'`): `time curl -s -o /dev/null -w '%{http_code}\n' localhost:18104/price/sku-new` prints `504` after about 2 seconds, not the provider's 10.

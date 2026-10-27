@@ -66,6 +66,15 @@ It prints one JSON object per line with `System.out.println`. Quotes and newline
 
 No secrets are logged: nothing in the code prints passwords, tokens or request bodies.
 
+**Every production class that writes log lines:**
+
+| File | What it is |
+| --- | --- |
+| `loadgen/src/main/java/dev/plainround/loadgen/LoadMain.java` | Command line: `java -jar loadgen.jar --target http://host/price/{sku` --skus 10 --rps 100 --seconds 30 [--side http://host/skus/sku-1 --side-rps 10]}. |
+| `price-service/src/main/java/dev/plainround/price/application/PriceService.java` | Prices a SKU: a fresh quote when the provider answers, the last good one, labeled stale, when it does not. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/ProviderExceptionHandler.java` | The one place errors become `application/problem+json`. |
+| `provider/src/main/java/dev/plainround/provider/JsonLog.java` | One JSON object per line on standard output: level, message and time, nothing else. |
+
 ## Try it yourself
 
 1. Start the service and send a request: `curl localhost:18104/price/sku-1`. Then read the service log: `docker compose logs --tail 20` (or the terminal of `make serve`).

@@ -84,6 +84,37 @@ void twentyConcurrentCallsAgainstALimitOfThreeNeverShowMoreThanThreeInFlight()
 
 A tiny context made by hand with `@EnableResilientMethods` tests the resilience annotations alone, with no web server.
 
+**Every test class that starts a Spring context or a slice (`@WebMvcTest`, `@DataJpaTest`, `@SpringBootTest`, `ApplicationContextRunner`, `AnnotationConfigApplicationContext`), with its tests:**
+
+- `price-service/src/test/java/dev/plainround/price/PriceServiceBehaviorIT.java`:
+  - `healthyProviderGivesAFreshPriceWithOneCall`
+  - `retriesAtMostThreeCallsTotalOn503`
+  - `doesNotRetryOnATimeoutAndAnswers504InAboutTheReadTimeout`
+  - `aSlowProviderBeyondTheTimeoutIsNotRetriedEither`
+  - `aRecentlyPricedSkuIsServedStaleWhenTheProviderIsDownAndANeverPricedOneIs503`
+  - `aQuoteOlderThanSixtySecondsIsNotServed`
+  - `staleServingAlsoCoversATimeout`
+  - `inFlightProviderCallsNeverExceedTheLimitWhileOtherEndpointsKeepAnswering`
+  - `metricsAndTraceIdsAreExposed`
+  - `healthIsUpWithLivenessAndReadinessProbes`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ProviderPropertiesTest.java`:
+  - `defaultsAreOneSecondToConnectAndTwoToRead`
+  - `aZeroOrNegativeTimeoutStopsTheApplicationAtStartup`
+  - `aMissingBaseUrlOrAnAbsurdCacheBoundStopsTheApplication`
+- `price-service/src/test/java/dev/plainround/price/infrastructure/ResilienceAnnotationsTest.java`:
+  - `twentyConcurrentCallsAgainstALimitOfThreeNeverShowMoreThanThreeInFlight`
+  - `theRejectPolicyRefusesTheExcessAtOnceInsteadOfQueueing`
+  - `retryableStopsAfterTheConfiguredNumberOfRetriesAndOnlyForTheNamedException`
+- `price-service/src/test/java/dev/plainround/price/interfaces/web/PriceControllerTest.java`:
+  - `aFreshPriceIs200WithStaleFalse`
+  - `aStalePriceIs200WithTheLabelAndTheAge`
+  - `aNeverPricedSkuWithAFailingProviderIs503WithRetryAfter`
+  - `aRefusedCallIsAlsoA503`
+  - `aNeverPricedSkuWhoseCallTimedOutIs504`
+  - `aSkuWithOddCharactersIs400NamingTheParameter`
+  - `theCatalogListsProductsAndNamesAMissingOne`
+  - `anUnexpectedErrorIs500WithoutLeakingTheMessage`
+
 ## Try it yourself
 
 1. `./mvnw test -Dtest=PriceControllerTest -pl price-service` runs a slice test.

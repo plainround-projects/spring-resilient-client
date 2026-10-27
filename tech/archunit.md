@@ -104,6 +104,17 @@ private static ArchCondition<JavaClass> callAProxiedMethodOfTheirOwnClass() {
 
 The custom condition flags a call from a class to a method of its own class when that method carries `@Retryable`, `@ConcurrencyLimit` or `@Transactional`: the proxy that applies those annotations would be skipped.
 
+**The test class that holds the ArchUnit rules, with its rule names:**
+
+- `price-service/src/test/java/dev/plainround/price/ArchitectureTest.java`:
+  - `layersOnlyDependInward`
+  - `domainDependsOnNothingButTheJdk`
+  - `applicationKnowsOnlyTheDomainTheJdkAndLogging`
+  - `noFieldInjection`
+  - `controllersLiveInTheInterfacesLayer`
+  - `noPackageCycles`
+  - `noSelfInvocationOfProxiedMethods`
+
 ## Try it yourself
 
 1. `./mvnw test -Dtest=ArchitectureTest -pl price-service` runs the rules.

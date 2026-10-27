@@ -20,6 +20,8 @@ The lesson says to start from a Spring Boot project with a few starters and "not
 
 ## How it works underneath
 
+A **jar** is a zip file of compiled Java classes; a "runnable" jar also contains a start class so `java -jar file.jar` works. An **embedded server** means the web server (Tomcat) is a library inside your program, not a separate installation. A **port** is the number a program listens on for network connections. The **JVM** runs your bytecode. A **process** is a running program; **SIGTERM** is the polite "please stop" signal an operating system or Docker sends.
+
 1. `main` calls `SpringApplication.run(...)`. Boot builds the application context, starts the embedded **Tomcat** web server on port 8080 (or `server.port`), and keeps the process alive.
 2. `@SpringBootApplication` is three annotations in one: it marks a configuration class, turns on **auto-configuration**, and turns on component scanning of the package and below.
 3. Auto-configuration is a list of configuration classes shipped inside Boot's jars. Each is guarded by **conditions** such as "only if this class exists" or "only if no bean of this type exists yet". When you add the web starter, the Tomcat and MVC configuration classes switch on; if you define your own bean of the same type, Boot's backs off.

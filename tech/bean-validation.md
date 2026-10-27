@@ -61,6 +61,14 @@ public record ProviderProperties(
 
 Validation also guards the settings. `@NotBlank` on the base URL and an `@AssertTrue` method that insists both timeouts are positive mean the application cannot start with a call that waits forever.
 
+**Every production class that carries Bean Validation annotations or `@Valid`:**
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/CacheProperties.java` | How long a good quote may be served stale, and how many are remembered. |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderProperties.java` | Where the provider is and how long a call may take. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceController.java` | HTTP face of pricing. |
+
 ## Try it yourself
 
 1. `curl -si 'localhost:18104/price/bad%20sku!'` gives a 400 whose `errors` names `sku`.

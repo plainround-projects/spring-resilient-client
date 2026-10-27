@@ -19,6 +19,13 @@ Every "Done when" line that is about an HTTP answer is shown with a `curl` comma
 
 ## How it works underneath
 
+Words first. **HTTP** is the language that web browsers and programs use to talk to web servers. A conversation is a **request** and a **response**.
+
+- A request has a **method** (the verb: `GET` reads, `POST` creates or triggers, `PUT` replaces, `DELETE` removes), a **URL** (the address: scheme `http`, host such as `localhost`, optional port, path such as `/books`, optional query string after `?` such as `?size=1000`), **headers** (named extra facts such as `Content-Type: application/json`), and optionally a **body** (the data sent).
+- A response has a **status code** (a three-digit number: 2xx success, 4xx the request was wrong, 5xx the server failed; for example 200 OK, 201 Created, 204 No Content, 400 Bad Request, 404 Not Found, 409 Conflict, 422 Unprocessable Content, 503 Service Unavailable, 504 Gateway Timeout), headers, and usually a body.
+- **localhost** is a name for "this machine"; with a port (`localhost:18101`) it addresses one program on it.
+- A **terminal** is the window where you type commands; the **shell** inside it (bash or zsh) reads each line and runs the program you name.
+
 1. `curl URL` opens a TCP connection to the host and port in the URL, sends `GET /path HTTP/1.1` plus headers, reads the response (status line, headers, body) and prints the body.
 2. `-X POST` changes the method. `-d 'text'` sets the request body (and implies POST). `-H 'Name: value'` adds a header; `Content-Type: application/json` tells the server the body is JSON.
 3. The exit code of `curl` is 0 on a completed HTTP exchange of any status, unless `-f` is used, which makes HTTP errors (4xx, 5xx) a failure.

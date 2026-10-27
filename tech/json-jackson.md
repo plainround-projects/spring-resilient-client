@@ -19,6 +19,8 @@ Every endpoint receives and returns JSON. Records are used for every request and
 
 ## How it works underneath
 
+A **JSON object** is a set of named values in curly braces, `{"title": "Dune", "pages": 412}`; a **JSON array** is an ordered list in square brackets, `[1, 2, 3]`. Values can themselves be objects or arrays, so JSON nests. Strings use double quotes. There is no date type: dates travel as text.
+
 1. Spring MVC has **message converters**. For `application/json` the converter is backed by Jackson.
 2. On a request, the converter reads the body bytes and calls Jackson to build the record named by the `@RequestBody` parameter. Unknown fields are ignored by Spring Boot's setup; a missing field becomes `null` (or `0` for `int`).
 3. On the answer, Jackson walks the record's components and writes `{"name": value, ...}` using the component names.
@@ -52,6 +54,13 @@ public record PriceResponse(BigDecimal price, boolean stale, long ageSeconds) {
 The price API's JSON is `{"price":42.00,"stale":false,"ageSeconds":0}`; `stale` and `ageSeconds` come from the domain's `PriceResult`.
 
 The fake provider writes its JSON by hand (`"{\"price\":" + ... + "}"`) because it is deliberately a plain Java program without Jackson.
+
+**Every record that is a JSON shape (a request or an answer):**
+
+| File | What it is |
+| --- | --- |
+| `price-service/src/main/java/dev/plainround/price/infrastructure/ProviderCall.java` | One protected attempt to ask the provider for a price. |
+| `price-service/src/main/java/dev/plainround/price/interfaces/web/PriceResponse.java` | A price as the API shows it. |
 
 ## Try it yourself
 
