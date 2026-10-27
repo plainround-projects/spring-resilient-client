@@ -1,0 +1,18 @@
+# build output and local state
+target/
+.env
+logs/
+*.log
+.DS_Store
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# tooling
+.omc/
+.mvn/wrapper/*.jar

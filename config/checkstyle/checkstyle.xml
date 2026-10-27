@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!-- Rules that formatting cannot enforce: names, imports, public Javadoc, no leftovers. -->
+<module name="Checker">
+  <property name="severity" value="warning"/>
+  <module name="SuppressionFilter">
+    <property name="file" value="${checkstyle.suppressions.file}"/>
+  </module>
+  <property name="charset" value="UTF-8"/>
+
+  <module name="NewlineAtEndOfFile"/>
+  <module name="FileTabCharacter"/>
+  <module name="RegexpSingleline">
+    <property name="format" value="\s+$"/>
+    <property name="message" value="Trailing whitespace"/>
+  </module>
+
+  <module name="TreeWalker">
+    <module name="AvoidStarImport"/>
+    <module name="UnusedImports"/>
+    <module name="RedundantImport"/>
+    <module name="IllegalImport">
+      <property name="illegalPkgs" value="sun, com.sun, org.apache.commons.logging"/>
+    </module>
+
+    <module name="PackageName"/>
+    <module name="TypeName"/>
+    <module name="MethodName"/>
+    <module name="ParameterName"/>
+    <module name="LocalVariableName">
+      <property name="allowOneCharVarInForLoop" value="false"/>
+      <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
+    </module>
+    <module name="MemberName"/>
+    <module name="ConstantName"/>
+
+    <module name="ModifierOrder"/>
+    <module name="RedundantModifier"/>
+    <module name="NeedBraces"/>
+    <module name="EmptyStatement"/>
+    <module name="EqualsHashCode"/>
+    <module name="MissingSwitchDefault"/>
+    <module name="SimplifyBooleanExpression"/>
+    <module name="SimplifyBooleanReturn"/>
+    <module name="HideUtilityClassConstructor"/>
+    <module name="UpperEll"/>
+    <module name="ArrayTypeStyle"/>
+    <module name="OneTopLevelClass"/>
+    <module name="OuterTypeFilename"/>
+
+    <module name="TodoComment">
+      <property name="format" value="(TODO|FIXME|XXX)"/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="System\.(out|err)\.print"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Use the logger, not System.out or System.err"/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="@Autowired"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Constructor injection only: no @Autowired (a single constructor is enough)"/>
+    </module>
+
+    <module name="MissingJavadocType">
+      <property name="scope" value="public"/>
+      <property name="skipAnnotations" value="SpringBootApplication"/>
+    </module>
+    <module name="MissingJavadocMethod">
+      <property name="scope" value="public"/>
+      <property name="allowMissingPropertyJavadoc" value="true"/>
+      <property name="allowedAnnotations" value="Override, Test, ParameterizedTest, BeforeEach, AfterEach, BeforeAll, AfterAll, Bean"/>
+      <property name="tokens" value="METHOD_DEF"/>
+      <property name="minLineCount" value="3"/>
+    </module>
+    <module name="SummaryJavadoc">
+    </module>
+  </module>
+</module>

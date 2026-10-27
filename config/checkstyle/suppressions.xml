@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+<!-- Each suppression says why. Nothing here hides a production-code problem. -->
+<suppressions>
+  <!-- A Spring Boot entry point holds only a static main method. -->
+  <suppress checks="HideUtilityClassConstructor" files="[\\/]src[\\/]main[\\/].*Application\.java"/>
+  <!-- ArchUnit rules are static final fields named for the rule they state, and the class holds nothing else. -->
+  <suppress checks="HideUtilityClassConstructor|ConstantName" files="[\\/]ArchitectureTest\.java"/>
+  <!-- Test classes receive Spring test beans (MockMvc, repositories) with @Autowired; production code never does. -->
+  <suppress checks="RegexpSinglelineJava" message="Constructor injection only" files="[\\/]src[\\/]test[\\/]"/>
+  <!-- com.sun.net.httpserver is the supported public API of the jdk.httpserver module, which the plain-Java provider and its tests use on purpose. -->
+  <suppress checks="IllegalImport" files="[\\/](provider|loadgen)[\\/].*\.java"/>
+  <!-- JsonLog is the provider's logger: one JSON object per line on standard output, with no logging framework. -->
+  <suppress checks="RegexpSinglelineJava" message="Use the logger" files="[\\/]provider[\\/].*JsonLog\.java"/>
+</suppressions>
