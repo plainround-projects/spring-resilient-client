@@ -9,6 +9,7 @@ A price service that stays fast and honest while its provider is slow, failing o
 | **Level** | Advanced |
 | **Versions** | Spring Boot 4.1.2 (Spring Framework 7.0), Java 25 (the current LTS; the lesson names none), Maven 3.9 through the checked-in wrapper |
 | **Architecture** | [ARCHITECTURE.md](ARCHITECTURE.md), decisions: [docs/adr](docs/adr), benchmark: [docs/benchmark.md](docs/benchmark.md) |
+| **Technology notes** | [tech/README.md](tech/README.md): one note per technology used here, written for a complete beginner |
 | **Author** | Sumit Srivastava |
 
 ## Prerequisites
@@ -58,6 +59,7 @@ spring-resilient-client/
 ├── observability/                    Grafana provisioning and the dashboard JSON
 ├── scripts/                          scenario.sh (make run), benchmark.sh, capture-traces.sh, audit.sh
 ├── docs/                             benchmark.md, evidence/, adr/
+├── tech/                                 one note per technology (Java, Spring, SQL, Docker, Bash, ...) for a complete beginner, with the repository\'s own lines explained
 ├── config/checkstyle/                lint rules and the few documented suppressions
 ├── provider/Dockerfile, price-service/Dockerfile, docker-compose.yml, Makefile, .github/workflows/ci.yml, .env.example, .editorconfig, .gitignore
 └── README.md, ARCHITECTURE.md, CHANGELOG.md, LICENSE
