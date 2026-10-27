@@ -119,6 +119,192 @@ Each `<suppress>` has `checks` (the rule names, separated by `|`), `files` (a re
 - `IllegalImport` for every file in the `provider` and `loadgen` modules: `com.sun.net.httpserver` is the supported public API of the JDK module `jdk.httpserver`; the `IllegalImport` rule bans the whole `com.sun` family.
 - `RegexpSinglelineJava` with the message "Use the logger" for `JsonLog.java` in the provider: that class is the provider's logger and writes JSON lines with `System.out` on purpose.
 
+### The complete rule and suppression files
+
+`config/checkstyle/checkstyle.xml` lists the rules; `config/checkstyle/suppressions.xml` lists the places where a rule is switched off, each with a comment giving the reason. Both are quoted whole, each followed by an element-by-element reading.
+
+### `config/checkstyle/checkstyle.xml`
+
+The whole file, as it is in the repository:
+
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<!-- Rules that formatting cannot enforce: names, imports, public Javadoc, no leftovers. -->
+<module name="Checker">
+  <property name="severity" value="warning"/>
+  <module name="SuppressionFilter">
+    <property name="file" value="${checkstyle.suppressions.file}"/>
+  </module>
+  <property name="charset" value="UTF-8"/>
+
+  <module name="NewlineAtEndOfFile"/>
+  <module name="FileTabCharacter"/>
+  <module name="RegexpSingleline">
+    <property name="format" value="\s+$"/>
+    <property name="message" value="Trailing whitespace"/>
+  </module>
+
+  <module name="TreeWalker">
+    <module name="AvoidStarImport"/>
+    <module name="UnusedImports"/>
+    <module name="RedundantImport"/>
+    <module name="IllegalImport">
+      <property name="illegalPkgs" value="sun, com.sun, org.apache.commons.logging"/>
+    </module>
+
+    <module name="PackageName"/>
+    <module name="TypeName"/>
+    <module name="MethodName"/>
+    <module name="ParameterName"/>
+    <module name="LocalVariableName">
+      <property name="allowOneCharVarInForLoop" value="false"/>
+      <property name="format" value="^[a-z][a-zA-Z0-9]+$"/>
+    </module>
+    <module name="MemberName"/>
+    <module name="ConstantName"/>
+
+    <module name="ModifierOrder"/>
+    <module name="RedundantModifier"/>
+    <module name="NeedBraces"/>
+    <module name="EmptyStatement"/>
+    <module name="EqualsHashCode"/>
+    <module name="MissingSwitchDefault"/>
+    <module name="SimplifyBooleanExpression"/>
+    <module name="SimplifyBooleanReturn"/>
+    <module name="HideUtilityClassConstructor"/>
+    <module name="UpperEll"/>
+    <module name="ArrayTypeStyle"/>
+    <module name="OneTopLevelClass"/>
+    <module name="OuterTypeFilename"/>
+
+    <module name="TodoComment">
+      <property name="format" value="(TODO|FIXME|XXX)"/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="System\.(out|err)\.print"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Use the logger, not System.out or System.err"/>
+    </module>
+    <module name="RegexpSinglelineJava">
+      <property name="format" value="@Autowired"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Constructor injection only: no @Autowired (a single constructor is enough)"/>
+    </module>
+
+    <module name="MissingJavadocType">
+      <property name="scope" value="public"/>
+      <property name="skipAnnotations" value="SpringBootApplication"/>
+    </module>
+    <module name="MissingJavadocMethod">
+      <property name="scope" value="public"/>
+      <property name="allowMissingPropertyJavadoc" value="true"/>
+      <property name="allowedAnnotations" value="Override, Test, ParameterizedTest, BeforeEach, AfterEach, BeforeAll, AfterAll, Bean"/>
+      <property name="tokens" value="METHOD_DEF"/>
+      <property name="minLineCount" value="3"/>
+    </module>
+    <module name="SummaryJavadoc">
+    </module>
+  </module>
+</module>
+```
+
+Reading it, element by element (each line is one XML element, indented under the element that contains it):
+
+- **`Checker`**: The root of the rules: everything below applies to every file. Its `severity` property makes every violation a warning, and the plugin is set to fail on warnings.
+  - property `severity` = `warning`: a setting of the rule it sits in.
+  - **`SuppressionFilter`**: Loads `suppressions.xml`, the list of places where a rule is switched off on purpose.
+    - property `file` = `${checkstyle.suppressions.file}`: a setting of the rule it sits in.
+  - property `charset` = `UTF-8`: a setting of the rule it sits in.
+  - **`NewlineAtEndOfFile`**: A file must end with a line break.
+  - **`FileTabCharacter`**: No tab characters in Java files; spaces only.
+  - **`RegexpSingleline`**: Fails a line that matches a pattern. Here the pattern is `\s+$`: spaces at the end of a line.
+    - property `format` = `\s+$`: a setting of the rule it sits in.
+    - property `message` = `Trailing whitespace`: a setting of the rule it sits in.
+  - **`TreeWalker`**: The group of rules that look inside each file's syntax tree (classes, methods, imports).
+    - **`AvoidStarImport`**: No `import java.util.*;`; every import names one class.
+    - **`UnusedImports`**: An import that nothing uses is an error.
+    - **`RedundantImport`**: No duplicate imports, no imports of the same package or of `java.lang`.
+    - **`IllegalImport`**: Bans imports from the listed packages (`sun`, `com.sun`, `org.apache.commons.logging`); they are internal or the wrong logging API.
+      - property `illegalPkgs` = `sun, com.sun, org.apache.commons.logging`: a setting of the rule it sits in.
+    - **`PackageName`**: Package names are lower case.
+    - **`TypeName`**: Class, record and interface names start with a capital letter.
+    - **`MethodName`**: Method names start with a lower-case letter (camelCase).
+    - **`ParameterName`**: Parameter names are camelCase.
+    - **`LocalVariableName`**: Local variable names are camelCase and at least two characters; one-letter names, loop counters included, are not allowed.
+      - property `allowOneCharVarInForLoop` = `false`: a setting of the rule it sits in.
+      - property `format` = `^[a-z][a-zA-Z0-9]+$`: a setting of the rule it sits in.
+    - **`MemberName`**: Field names are camelCase.
+    - **`ConstantName`**: `static final` constants are written in UPPER_CASE.
+    - **`ModifierOrder`**: Modifiers come in the standard order (`public static final`).
+    - **`RedundantModifier`**: No modifier that is already implied (for example `public` on an interface method).
+    - **`NeedBraces`**: An `if`, `for` or `while` always uses braces, even for one statement.
+    - **`EmptyStatement`**: No stray `;` on its own.
+    - **`EqualsHashCode`**: A class that overrides `equals` must also override `hashCode`.
+    - **`MissingSwitchDefault`**: A `switch` statement has a `default` branch.
+    - **`SimplifyBooleanExpression`**: No `x == true` or `!(a == b)` style clutter.
+    - **`SimplifyBooleanReturn`**: Write `return condition;` instead of `if (condition) return true; else return false;`.
+    - **`HideUtilityClassConstructor`**: A class with only static methods must have a private constructor, so nobody creates an instance.
+    - **`UpperEll`**: A long literal ends in `L`, not `l` (which looks like a one).
+    - **`ArrayTypeStyle`**: Write `String[] names`, not `String names[]`.
+    - **`OneTopLevelClass`**: One top-level class per file.
+    - **`OuterTypeFilename`**: The file name equals the name of its top-level type.
+    - **`TodoComment`**: Fails a comment containing TODO, FIXME or XXX: no unfinished business is committed.
+      - property `format` = `(TODO|FIXME|XXX)`: a setting of the rule it sits in.
+    - **`RegexpSinglelineJava`**: Fails a Java code line (comments ignored) that matches a pattern. Used twice: one forbids `System.out`/`System.err` printing, one forbids `@Autowired`.
+      - property `format` = `System\.(out|err)\.print`: a setting of the rule it sits in.
+      - property `ignoreComments` = `true`: a setting of the rule it sits in.
+      - property `message` = `Use the logger, not System.out or System.err`: a setting of the rule it sits in.
+    - **`RegexpSinglelineJava`**: Fails a Java code line (comments ignored) that matches a pattern. Used twice: one forbids `System.out`/`System.err` printing, one forbids `@Autowired`.
+      - property `format` = `@Autowired`: a setting of the rule it sits in.
+      - property `ignoreComments` = `true`: a setting of the rule it sits in.
+      - property `message` = `Constructor injection only: no @Autowired (a single constructor is enough)`: a setting of the rule it sits in.
+    - **`MissingJavadocType`**: A public class, record or interface needs a Javadoc comment (`/** ... */`).
+      - property `scope` = `public`: a setting of the rule it sits in.
+      - property `skipAnnotations` = `SpringBootApplication`: a setting of the rule it sits in.
+    - **`MissingJavadocMethod`**: A public method of three lines or more needs Javadoc, except those with the listed annotations (such as `@Override` and `@Test`).
+      - property `scope` = `public`: a setting of the rule it sits in.
+      - property `allowMissingPropertyJavadoc` = `true`: a setting of the rule it sits in.
+      - property `allowedAnnotations` = `Override, Test, ParameterizedTest, BeforeEach, AfterEach, BeforeAll, AfterAll, Bean`: a setting of the rule it sits in.
+      - property `tokens` = `METHOD_DEF`: a setting of the rule it sits in.
+      - property `minLineCount` = `3`: a setting of the rule it sits in.
+    - **`SummaryJavadoc`**: The first sentence of a Javadoc comment must be a real summary.
+
+
+### `config/checkstyle/suppressions.xml`
+
+The whole file, as it is in the repository:
+
+```xml
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+    "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+<!-- Each suppression says why. Nothing here hides a production-code problem. -->
+<suppressions>
+  <!-- A Spring Boot entry point holds only a static main method. -->
+  <suppress checks="HideUtilityClassConstructor" files="[\\/]src[\\/]main[\\/].*Application\.java"/>
+  <!-- ArchUnit rules are static final fields named for the rule they state, and the class holds nothing else. -->
+  <suppress checks="HideUtilityClassConstructor|ConstantName" files="[\\/]ArchitectureTest\.java"/>
+  <!-- Test classes receive Spring test beans (MockMvc, repositories) with @Autowired; production code never does. -->
+  <suppress checks="RegexpSinglelineJava" message="Constructor injection only" files="[\\/]src[\\/]test[\\/]"/>
+  <!-- com.sun.net.httpserver is the supported public API of the jdk.httpserver module, which the plain-Java provider and its tests use on purpose. -->
+  <suppress checks="IllegalImport" files="[\\/](provider|loadgen)[\\/].*\.java"/>
+  <!-- JsonLog is the provider's logger: one JSON object per line on standard output, with no logging framework. -->
+  <suppress checks="RegexpSinglelineJava" message="Use the logger" files="[\\/]provider[\\/].*JsonLog\.java"/>
+</suppressions>
+```
+
+Reading it, element by element (each line is one XML element, indented under the element that contains it):
+
+- **`<suppressions>`**: the list of places where a rule is deliberately switched off.
+  - **suppress** `HideUtilityClassConstructor` for files matching `[\\/]src[\\/]main[\\/].*Application\.java`: switches those checks off for those files; the comment above it says why.
+  - **suppress** `HideUtilityClassConstructor|ConstantName` for files matching `[\\/]ArchitectureTest\.java`: switches those checks off for those files; the comment above it says why.
+  - **suppress** `RegexpSinglelineJava` for files matching `[\\/]src[\\/]test[\\/]` (only messages matching `Constructor injection only`): switches those checks off for those files; the comment above it says why.
+  - **suppress** `IllegalImport` for files matching `[\\/](provider|loadgen)[\\/].*\.java`: switches those checks off for those files; the comment above it says why.
+  - **suppress** `RegexpSinglelineJava` for files matching `[\\/]provider[\\/].*JsonLog\.java` (only messages matching `Use the logger`): switches those checks off for those files; the comment above it says why.
+
+
 ## Try it yourself
 
 1. `./mvnw checkstyle:check` prints `You have 0 Checkstyle violations.`

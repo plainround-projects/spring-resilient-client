@@ -212,6 +212,694 @@ The `<executions>` block binds two goals to the lifecycle: `integration-test` ru
 
 The JaCoCo, Spotless and Checkstyle plugin blocks are explained in `jacoco.md`, `spotless-google-java-format.md` and `checkstyle.md`.
 
+### The complete build files
+
+Every `pom.xml` in the repository follows, quoted whole. Under each, the "Reading it, element by element" list walks through the file from top to bottom. An XML element is a pair of tags such as `<version>0.1.0</version>`: the name between angle brackets, the content, and the same name with a slash to close. Elements nest inside each other, and the list shows the nesting with indentation.
+
+### `pom.xml`
+
+The whole file, as it is in the repository:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.2</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>dev.plainround</groupId>
+  <artifactId>spring-resilient-client</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <name>spring-resilient-client</name>
+  <description>A price service that stays fast and honest while its provider is slow, failing or silent.</description>
+
+  <modules>
+    <module>provider</module>
+    <module>loadgen</module>
+    <module>price-service</module>
+  </modules>
+
+  <properties>
+    <java.version>25</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <archunit.version>1.5.1</archunit.version>
+    <spotless.version>3.10.4</spotless.version>
+    <google-java-format.version>1.30.0</google-java-format.version>
+    <checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
+    <checkstyle.version>14.3.0</checkstyle.version>
+    <jacoco.version>0.8.16</jacoco.version>
+    <jacoco.bundle.minimum>0.85</jacoco.bundle.minimum>
+  </properties>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <configuration>
+            <archive>
+              <manifest>
+                <mainClass>${start-class}</mainClass>
+              </manifest>
+            </archive>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <parameters>true</parameters>
+          <showWarnings>true</showWarnings>
+          <compilerArgs>
+            <arg>-Xlint:all,-processing</arg>
+            <arg>-Werror</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <argLine>@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off</argLine>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>prepare-agent</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>check</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${jacoco.bundle.minimum}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless.version}</version>
+        <configuration>
+          <java>
+            <googleJavaFormat>
+              <version>${google-java-format.version}</version>
+              <style>AOSP</style>
+              <reflowLongStrings>true</reflowLongStrings>
+            </googleJavaFormat>
+            <removeUnusedImports/>
+            <importOrder/>
+          </java>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-checkstyle-plugin</artifactId>
+        <version>${checkstyle-plugin.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>com.puppycrawl.tools</groupId>
+            <artifactId>checkstyle</artifactId>
+            <version>${checkstyle.version}</version>
+          </dependency>
+        </dependencies>
+        <configuration>
+          <configLocation>${maven.multiModuleProjectDirectory}/config/checkstyle/checkstyle.xml</configLocation>
+          <suppressionsLocation>${maven.multiModuleProjectDirectory}/config/checkstyle/suppressions.xml</suppressionsLocation>
+          <includeTestSourceDirectory>true</includeTestSourceDirectory>
+          <consoleOutput>true</consoleOutput>
+          <failOnViolation>true</failOnViolation>
+          <violationSeverity>warning</violationSeverity>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+Reading it, element by element (each line is one XML element, indented under the element that contains it):
+
+- `<project>`: the root element of a Maven build description (a POM, "project object model").
+  - `<modelVersion>` `4.0.0`: the version of the POM format itself; Maven 3 and 4 files use 4.0.0.
+  - `<parent>`: a POM this one inherits from: its versions, plugin settings and properties apply here too.
+    - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+    - `<artifactId>` `spring-boot-starter-parent`: the name part of the coordinates, like a first name.
+    - `<version>` `4.1.2`: the version part of the coordinates.
+    - `<relativePath>`: where to look for the parent on disk; empty means "do not look, download it from the repository".
+  - `<groupId>` `dev.plainround`: the organization or namespace part of the coordinates, like a surname.
+  - `<artifactId>` `spring-resilient-client`: the name part of the coordinates, like a first name.
+  - `<version>` `0.1.0`: the version part of the coordinates.
+  - `<packaging>` `pom`: what the build produces: `pom` means a parent that only lists modules and settings, with no code of its own; the default is `jar`.
+  - `<name>` `spring-resilient-client`: a human-readable name.
+  - `<description>` `A price service that stays fast and honest while its provider is slow, failing or silent.`: a one-sentence description.
+  - `<modules>`: the folders that are built as part of this project, in this order unless dependencies say otherwise.
+    - `<module>` `provider`: one sub-project folder.
+    - `<module>` `loadgen`: one sub-project folder.
+    - `<module>` `price-service`: one sub-project folder.
+  - `<properties>`: named values that the rest of the file can use as `${name}`.
+    - `<java.version>` = `25`: the Java release the code is compiled for; the Spring Boot parent reads it.
+    - `<project.build.sourceEncoding>` = `UTF-8`: how source files are stored as bytes (UTF-8).
+    - `<archunit.version>` = `1.5.1`: the ArchUnit version, used where the dependency is declared.
+    - `<spotless.version>` = `3.10.4`: the Spotless plugin version.
+    - `<google-java-format.version>` = `1.30.0`: the formatter version Spotless uses.
+    - `<checkstyle-plugin.version>` = `3.6.0`: the version of the Maven plugin that runs Checkstyle.
+    - `<checkstyle.version>` = `14.3.0`: the version of the Checkstyle engine itself.
+    - `<jacoco.version>` = `0.8.16`: the JaCoCo version.
+    - `<jacoco.bundle.minimum>` = `0.85`: the minimum covered share of lines for the whole module.
+  - `<build>`: how the project is built.
+    - `<pluginManagement>`: settings for plugins that apply only if a module uses the plugin; nothing runs from here by itself.
+      - `<plugins>`: the build plugins that run.
+        - `<plugin>`: one plugin: a program Maven runs during the build.
+          - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+          - `<artifactId>` `maven-jar-plugin`: the name part of the coordinates, like a first name.
+          - `<configuration>`: the settings of the plugin or execution around it.
+            - `<archive>`: settings for the jar file that gets built.
+              - `<manifest>`: the `META-INF/MANIFEST.MF` file inside the jar.
+                - `<mainClass>` `${start-class}`: the class whose `main` method starts when someone runs `java -jar`.
+    - `<plugins>`: the build plugins that run.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `maven-compiler-plugin`: the name part of the coordinates, like a first name.
+        - `<configuration>`: the settings of the plugin or execution around it.
+          - `<parameters>` `true`: keep method parameter names in the compiled classes, which Spring needs to match request parameters to Java parameters.
+          - `<showWarnings>` `true`: print every compiler warning.
+          - `<compilerArgs>`: extra flags passed to the Java compiler.
+            - `<arg>` `-Xlint:all,-processing`: one flag.
+            - `<arg>` `-Werror`: one flag.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `maven-surefire-plugin`: the name part of the coordinates, like a first name.
+        - `<configuration>`: the settings of the plugin or execution around it.
+          - `<argLine>` `@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off`: extra flags for the test JVM; `@{argLine}` keeps the JaCoCo agent flag that JaCoCo sets earlier.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `maven-failsafe-plugin`: the name part of the coordinates, like a first name.
+        - `<configuration>`: the settings of the plugin or execution around it.
+          - `<argLine>` `@{argLine} -XX:+EnableDynamicAgentLoading -Xshare:off`: extra flags for the test JVM; `@{argLine}` keeps the JaCoCo agent flag that JaCoCo sets earlier.
+        - `<executions>`: when the plugin runs.
+          - `<execution>`: one run of the plugin, bound to a phase.
+            - `<goals>`: the plugin functions to run.
+              - `<goal>` `integration-test`: one plugin function.
+              - `<goal>` `verify`: one plugin function.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.jacoco`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `jacoco-maven-plugin`: the name part of the coordinates, like a first name.
+        - `<version>` `${jacoco.version}`: the version part of the coordinates.
+        - `<executions>`: when the plugin runs.
+          - `<execution>`: one run of the plugin, bound to a phase.
+            - `<id>` `prepare-agent`: a name for this execution, so other files can refer to it.
+            - `<goals>`: the plugin functions to run.
+              - `<goal>` `prepare-agent`: one plugin function.
+          - `<execution>`: one run of the plugin, bound to a phase.
+            - `<id>` `report`: a name for this execution, so other files can refer to it.
+            - `<phase>` `verify`: the stage of the Maven lifecycle at which this execution runs.
+            - `<goals>`: the plugin functions to run.
+              - `<goal>` `report`: one plugin function.
+          - `<execution>`: one run of the plugin, bound to a phase.
+            - `<id>` `check`: a name for this execution, so other files can refer to it.
+            - `<phase>` `verify`: the stage of the Maven lifecycle at which this execution runs.
+            - `<goals>`: the plugin functions to run.
+              - `<goal>` `check`: one plugin function.
+            - `<configuration>`: the settings of the plugin or execution around it.
+              - `<rules>`: the checks that decide whether the build passes.
+                - `<rule>`: one check.
+                  - `<element>` `BUNDLE`: what the check measures: `BUNDLE` is the whole module, `PACKAGE` one package.
+                  - `<limits>`: the thresholds for the check.
+                    - `<limit>`: one threshold.
+                      - `<counter>` `LINE`: what is counted: `LINE`, `BRANCH`, and so on.
+                      - `<value>` `COVEREDRATIO`: how it is expressed: `COVEREDRATIO` is the covered share between 0 and 1.
+                      - `<minimum>` `${jacoco.bundle.minimum}`: the lowest allowed value; below it the build fails.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `com.diffplug.spotless`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `spotless-maven-plugin`: the name part of the coordinates, like a first name.
+        - `<version>` `${spotless.version}`: the version part of the coordinates.
+        - `<configuration>`: the settings of the plugin or execution around it.
+          - `<java>`: settings for formatting Java files.
+            - `<googleJavaFormat>`: use the google-java-format formatter.
+              - `<version>` `${google-java-format.version}`: the version part of the coordinates.
+              - `<style>` `AOSP`: the formatter style; `AOSP` indents by four spaces, as Android does.
+              - `<reflowLongStrings>` `true`: break long string literals over several lines to stay within the line limit.
+            - `<removeUnusedImports>`: delete `import` lines nothing uses.
+            - `<importOrder>`: sort the imports (the default order).
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `maven-checkstyle-plugin`: the name part of the coordinates, like a first name.
+        - `<version>` `${checkstyle-plugin.version}`: the version part of the coordinates.
+        - `<dependencies>`: the libraries this module needs.
+          - `<dependency>`: one library, identified by its coordinates.
+            - `<groupId>` `com.puppycrawl.tools`: the organization or namespace part of the coordinates, like a surname.
+            - `<artifactId>` `checkstyle`: the name part of the coordinates, like a first name.
+            - `<version>` `${checkstyle.version}`: the version part of the coordinates.
+        - `<configuration>`: the settings of the plugin or execution around it.
+          - `<configLocation>` `${maven.multiModuleProjectDirectory}/config/checkstyle/checkstyle.xml`: the Checkstyle rule file.
+          - `<suppressionsLocation>` `${maven.multiModuleProjectDirectory}/config/checkstyle/suppressions.xml`: the file that lists where rules are switched off.
+          - `<includeTestSourceDirectory>` `true`: check the test code as well as the main code.
+          - `<consoleOutput>` `true`: print the violations in the build output.
+          - `<failOnViolation>` `true`: fail the build when a violation is found.
+          - `<violationSeverity>` `warning`: the lowest severity that counts as a violation.
+
+
+### `provider/pom.xml`
+
+The whole file, as it is in the repository:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.plainround</groupId>
+    <artifactId>spring-resilient-client</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>provider</artifactId>
+  <name>provider</name>
+  <description>The fake quote provider: a plain JDK HttpServer you can switch between normal, slow, 503 and hang.</description>
+
+  <properties>
+    <start-class>dev.plainround.provider.ProviderMain</start-class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+Reading it, element by element (each line is one XML element, indented under the element that contains it):
+
+- `<project>`: the root element of a Maven build description (a POM, "project object model").
+  - `<modelVersion>` `4.0.0`: the version of the POM format itself; Maven 3 and 4 files use 4.0.0.
+  - `<parent>`: a POM this one inherits from: its versions, plugin settings and properties apply here too.
+    - `<groupId>` `dev.plainround`: the organization or namespace part of the coordinates, like a surname.
+    - `<artifactId>` `spring-resilient-client`: the name part of the coordinates, like a first name.
+    - `<version>` `0.1.0`: the version part of the coordinates.
+  - `<artifactId>` `provider`: the name part of the coordinates, like a first name.
+  - `<name>` `provider`: a human-readable name.
+  - `<description>` `The fake quote provider: a plain JDK HttpServer you can switch between normal, slow, 503 and hang.`: a one-sentence description.
+  - `<properties>`: named values that the rest of the file can use as `${name}`.
+    - `<start-class>` = `dev.plainround.provider.ProviderMain`: the class with `main`, read by the Spring Boot plugin and the jar plugin.
+  - `<dependencies>`: the libraries this module needs.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.junit.jupiter`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `junit-jupiter`: the name part of the coordinates, like a first name.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.assertj`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `assertj-core`: the name part of the coordinates, like a first name.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+  - `<build>`: how the project is built.
+    - `<plugins>`: the build plugins that run.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `maven-jar-plugin`: the name part of the coordinates, like a first name.
+
+
+### `loadgen/pom.xml`
+
+The whole file, as it is in the repository:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.plainround</groupId>
+    <artifactId>spring-resilient-client</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>loadgen</artifactId>
+  <name>loadgen</name>
+  <description>A paced HTTP load generator: N requests a second for D seconds, with p50, p99 and error rate.</description>
+
+  <properties>
+    <start-class>dev.plainround.loadgen.LoadMain</start-class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+Reading it, element by element (each line is one XML element, indented under the element that contains it):
+
+- `<project>`: the root element of a Maven build description (a POM, "project object model").
+  - `<modelVersion>` `4.0.0`: the version of the POM format itself; Maven 3 and 4 files use 4.0.0.
+  - `<parent>`: a POM this one inherits from: its versions, plugin settings and properties apply here too.
+    - `<groupId>` `dev.plainround`: the organization or namespace part of the coordinates, like a surname.
+    - `<artifactId>` `spring-resilient-client`: the name part of the coordinates, like a first name.
+    - `<version>` `0.1.0`: the version part of the coordinates.
+  - `<artifactId>` `loadgen`: the name part of the coordinates, like a first name.
+  - `<name>` `loadgen`: a human-readable name.
+  - `<description>` `A paced HTTP load generator: N requests a second for D seconds, with p50, p99 and error rate.`: a one-sentence description.
+  - `<properties>`: named values that the rest of the file can use as `${name}`.
+    - `<start-class>` = `dev.plainround.loadgen.LoadMain`: the class with `main`, read by the Spring Boot plugin and the jar plugin.
+  - `<dependencies>`: the libraries this module needs.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.junit.jupiter`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `junit-jupiter`: the name part of the coordinates, like a first name.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.assertj`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `assertj-core`: the name part of the coordinates, like a first name.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+  - `<build>`: how the project is built.
+    - `<plugins>`: the build plugins that run.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.apache.maven.plugins`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `maven-jar-plugin`: the name part of the coordinates, like a first name.
+
+
+### `price-service/pom.xml`
+
+The whole file, as it is in the repository:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.plainround</groupId>
+    <artifactId>spring-resilient-client</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>price-service</artifactId>
+  <name>price-service</name>
+  <description>A price API that calls a provider through RestClient and stays fast and honest when the provider misbehaves.</description>
+
+  <properties>
+    <jacoco.domain.minimum>0.95</jacoco.domain.minimum>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-restclient</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-opentelemetry</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>dev.plainround</groupId>
+      <artifactId>provider</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webmvc-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>${archunit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <excludes>
+            <exclude>
+              <groupId>dev.plainround</groupId>
+              <artifactId>provider</artifactId>
+            </exclude>
+          </excludes>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>check</id>
+            <configuration>
+              <rules>
+                <rule>
+                  <element>PACKAGE</element>
+                  <includes>
+                    <include>*.domain</include>
+                  </includes>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${jacoco.domain.minimum}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>LINE</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>${jacoco.bundle.minimum}</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+```
+
+Reading it, element by element (each line is one XML element, indented under the element that contains it):
+
+- `<project>`: the root element of a Maven build description (a POM, "project object model").
+  - `<modelVersion>` `4.0.0`: the version of the POM format itself; Maven 3 and 4 files use 4.0.0.
+  - `<parent>`: a POM this one inherits from: its versions, plugin settings and properties apply here too.
+    - `<groupId>` `dev.plainround`: the organization or namespace part of the coordinates, like a surname.
+    - `<artifactId>` `spring-resilient-client`: the name part of the coordinates, like a first name.
+    - `<version>` `0.1.0`: the version part of the coordinates.
+  - `<artifactId>` `price-service`: the name part of the coordinates, like a first name.
+  - `<name>` `price-service`: a human-readable name.
+  - `<description>` `A price API that calls a provider through RestClient and stays fast and honest when the provider misbehaves.`: a one-sentence description.
+  - `<properties>`: named values that the rest of the file can use as `${name}`.
+    - `<jacoco.domain.minimum>` = `0.95`: the minimum covered share of lines for the domain package.
+  - `<dependencies>`: the libraries this module needs.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-webmvc`: the name part of the coordinates, like a first name.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-restclient`: the name part of the coordinates, like a first name.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-validation`: the name part of the coordinates, like a first name.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-actuator`: the name part of the coordinates, like a first name.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-opentelemetry`: the name part of the coordinates, like a first name.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `io.micrometer`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `micrometer-registry-prometheus`: the name part of the coordinates, like a first name.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `dev.plainround`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `provider`: the name part of the coordinates, like a first name.
+      - `<version>` `${project.version}`: the version part of the coordinates.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-test`: the name part of the coordinates, like a first name.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `spring-boot-starter-webmvc-test`: the name part of the coordinates, like a first name.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+    - `<dependency>`: one library, identified by its coordinates.
+      - `<groupId>` `com.tngtech.archunit`: the organization or namespace part of the coordinates, like a surname.
+      - `<artifactId>` `archunit-junit5`: the name part of the coordinates, like a first name.
+      - `<version>` `${archunit.version}`: the version part of the coordinates.
+      - `<scope>` `test`: when the library is on the classpath: `test` means only while running tests, `runtime` only when the program runs, none means everywhere.
+  - `<build>`: how the project is built.
+    - `<plugins>`: the build plugins that run.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.springframework.boot`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `spring-boot-maven-plugin`: the name part of the coordinates, like a first name.
+        - `<configuration>`: the settings of the plugin or execution around it.
+          - `<excludes>`: these items are left out.
+            - `<exclude>`: one item to leave out.
+              - `<groupId>` `dev.plainround`: the organization or namespace part of the coordinates, like a surname.
+              - `<artifactId>` `provider`: the name part of the coordinates, like a first name.
+        - `<executions>`: when the plugin runs.
+          - `<execution>`: one run of the plugin, bound to a phase.
+            - `<goals>`: the plugin functions to run.
+              - `<goal>` `repackage`: one plugin function.
+      - `<plugin>`: one plugin: a program Maven runs during the build.
+        - `<groupId>` `org.jacoco`: the organization or namespace part of the coordinates, like a surname.
+        - `<artifactId>` `jacoco-maven-plugin`: the name part of the coordinates, like a first name.
+        - `<executions>`: when the plugin runs.
+          - `<execution>`: one run of the plugin, bound to a phase.
+            - `<id>` `check`: a name for this execution, so other files can refer to it.
+            - `<configuration>`: the settings of the plugin or execution around it.
+              - `<rules>`: the checks that decide whether the build passes.
+                - `<rule>`: one check.
+                  - `<element>` `PACKAGE`: what the check measures: `BUNDLE` is the whole module, `PACKAGE` one package.
+                  - `<includes>`: only these items are used.
+                    - `<include>` `*.domain`: one item to use.
+                  - `<limits>`: the thresholds for the check.
+                    - `<limit>`: one threshold.
+                      - `<counter>` `LINE`: what is counted: `LINE`, `BRANCH`, and so on.
+                      - `<value>` `COVEREDRATIO`: how it is expressed: `COVEREDRATIO` is the covered share between 0 and 1.
+                      - `<minimum>` `${jacoco.domain.minimum}`: the lowest allowed value; below it the build fails.
+                - `<rule>`: one check.
+                  - `<element>` `BUNDLE`: what the check measures: `BUNDLE` is the whole module, `PACKAGE` one package.
+                  - `<limits>`: the thresholds for the check.
+                    - `<limit>`: one threshold.
+                      - `<counter>` `LINE`: what is counted: `LINE`, `BRANCH`, and so on.
+                      - `<value>` `COVEREDRATIO`: how it is expressed: `COVEREDRATIO` is the covered share between 0 and 1.
+                      - `<minimum>` `${jacoco.bundle.minimum}`: the lowest allowed value; below it the build fails.
+
+
 ## Try it yourself
 
 1. `./mvnw -v` prints the Maven and JDK versions the wrapper uses. The first run downloads Maven.

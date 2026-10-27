@@ -255,6 +255,232 @@ test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8081 && printf 'GET /hea
 
 Read it in pieces: `["CMD", "bash", "-c", "..."]` runs bash with the string after `-c` as the program. `exec 3<>/dev/tcp/localhost/PORT` opens a network connection to the port on this machine and attaches it, for reading and writing (`<>`), to file descriptor 3. `printf 'GET /actuator/health/readiness HTTP/1.0\r\n\r\n' >&3` writes an HTTP request into it (`>&3` redirects stdout to descriptor 3). `grep -q '"status":"UP"' <&3` reads the answer from descriptor 3 (`<&3`) and succeeds only if the text appears. The `&&` between the three parts means each runs only if the one before succeeded, so the check passes only when the server answers UP.
 
+### The complete scripts
+
+Every script in the `scripts` folder, quoted whole, each followed by a block-by-block reading that explains each command and each symbol. Read [curl](curl.md) and [jq](jq.md) for the two tools these scripts call most.
+
+### `scripts/audit.sh`
+
+The whole file, as it is in the repository:
+
+```bash
+#!/usr/bin/env bash
+# Dependency audit (OSV-Scanner 2.7.0, pinned by digest): OSV-Scanner reads pom.xml (with the Spring Boot parent's managed versions) and reports
+# known vulnerabilities. Fails on any finding that is not listed, with a reason, in osv-scanner.toml.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+IMAGE="${OSV_SCANNER_IMAGE:-ghcr.io/google/osv-scanner@sha256:4f3b7e2c64b9d38a5febc5a7e4a3dfef1d1362f726dea7a2ef4762b46469fcd0}"
+docker run --rm -v "$PWD:/src:ro" -w /src "$IMAGE" scan source --lockfile=pom.xml --config=osv-scanner.toml
+```
+
+Reading it, block by block:
+
+1. Line 1, `#!/usr/bin/env bash`, is the shebang: when you run the file directly, the operating system reads it and starts the program `bash` (found through `env`) to run the rest.
+2. Lines 2 and 3 are comments (a `#` starts a comment; the shell ignores the rest of that line). They say what the script is for.
+3. Line 4, `set -euo pipefail`, makes the script strict. `-e` stops it at the first command that fails, `-u` makes using a variable that was never set an error, and `-o pipefail` makes a chain of commands joined by `|` fail if any part fails, not only the last.
+4. Line 6, `cd "$(dirname "$0")/.."`, moves to the repository root. `$0` is the path this script was started with, `dirname` cuts off the file name leaving the folder (`scripts`), `/..` goes one folder up, and `$( ... )` runs a command and pastes its output. The double quotes keep a path with spaces in one piece.
+5. Line 7 sets `IMAGE`. `${OSV_SCANNER_IMAGE:-default}` means: use the environment variable `OSV_SCANNER_IMAGE` if it is set and not empty, otherwise use the default after `:-`. The default is the OSV-Scanner container image, named by its `sha256` digest (a fingerprint of the exact image contents), so the tool cannot change silently.
+6. Line 8 runs the scanner in a container. `docker run` starts a container; `--rm` deletes it afterwards; `-v "$PWD:/src:ro"` shows the current folder inside the container at `/src` read-only; `-w /src` makes `/src` the working folder; then come the image and the scanner's own arguments: `scan source` (scan source code), `--lockfile=pom.xml` (read the dependency list from `pom.xml`) and `--config=osv-scanner.toml` (read the list of accepted findings, each with a reason). The exit code of the scanner becomes the exit code of the script, which is how `make audit` fails on an unaccepted finding.
+
+
+### `scripts/benchmark.sh`
+
+The whole file, as it is in the repository:
+
+```bash
+#!/usr/bin/env bash
+# The lesson's step 6 table: p50, p99 and error rate for every provider mode, before (price.protection=none:
+# no timeouts, retries, limit or cache) and after (price.protection=full), at the same load. The provider's own
+# call count is the independent witness. Writes docs/benchmark.md.
+# Usage: scripts/benchmark.sh [price-url] [provider-url]   (env: RPS=100 SECONDS_PER_RUN=20)
+set -euo pipefail
+
+PRICE="${1:-http://localhost:${PRICE_PORT:-18104}}"
+PROVIDER="${2:-http://localhost:${PROVIDER_PORT:-18103}}"
+RPS="${RPS:-100}"
+SECONDS_PER_RUN="${SECONDS_PER_RUN:-20}"
+LOADGEN="java -jar loadgen/target/loadgen-0.1.0.jar"
+OUT=docs/benchmark.md
+
+mode() { curl -fsS -X PUT "$PROVIDER/admin/mode?mode=$1${2:+&$2}" >/dev/null; curl -fsS -X POST "$PROVIDER/admin/reset" >/dev/null; }
+wait_ready() { until curl -fsS "$PRICE/actuator/health/readiness" 2>/dev/null | jq -e '.status == "UP"' >/dev/null; do sleep 2; done; }
+
+{
+  echo "# Benchmark: before and after"
+  echo
+  echo "$RPS requests a second for ${SECONDS_PER_RUN} s per run against 10 SKUs, plus 10 requests a second to the catalog endpoint (\`/skus/sku-1\`), which never calls the provider. Slow mode answers after 5 s, hang mode after 10 s. 'Before' is \`price.protection=none\`; 'after' is the service this project builds. Run on $(date -u +%Y-%m-%d) on $(uname -sm); numbers depend on the machine."
+  echo
+  echo "| protection | provider mode | p50 (ms) | p99 (ms) | error rate | stale answers | provider calls | catalog p99 (ms) |"
+  echo "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |"
+} > "$OUT"
+
+for protection in none full; do
+  PRICE_PROTECTION="$protection" docker compose up -d --force-recreate --no-deps price-service >/dev/null
+  wait_ready
+  for provider_mode in normal "slow delayMs=5000" fail503 hang; do
+    mode normal
+    for sku in $(seq 0 9); do curl -fsS "$PRICE/price/sku-$sku" >/dev/null; done   # warm the cache (full only)
+    mode $provider_mode
+    report="$($LOADGEN --target "$PRICE/price/{sku}" --skus 10 --rps "$RPS" --seconds "$SECONDS_PER_RUN" \
+      --side "$PRICE/skus/sku-1" --side-rps 10)"
+    calls="$(curl -fsS "$PROVIDER/admin/stats" | jq .callsReceived)"
+    price="$(echo "$report" | jq -s '.[] | select(.name == "price")')"
+    side="$(echo "$report" | jq -s '.[] | select(.name == "side")')"
+    printf '| %s | %s | %s | %s | %s%% | %s | %s | %s |\n' "$protection" "${provider_mode%% *}" \
+      "$(jq -r .p50Ms <<<"$price")" "$(jq -r .p99Ms <<<"$price")" \
+      "$(jq -r '.errorRate * 100 | round' <<<"$price")" "$(jq -r .stale <<<"$price")" "$calls" "$(jq -r .p99Ms <<<"$side")" | tee -a "$OUT"
+  done
+done
+mode normal
+PRICE_PROTECTION=full docker compose up -d --force-recreate --no-deps price-service >/dev/null
+echo; echo "written to $OUT"
+```
+
+Reading it, block by block:
+
+1. Lines 1 to 5: shebang and comments: the script produces the table in `docs/benchmark.md` comparing `price.protection=none` and `full` at the same load, and uses the provider's call count as independent proof. The usage line shows two optional arguments and two optional environment variables.
+2. Line 6: strict mode. Lines 8 and 9: the two service addresses, as in the scenario script.
+3. Lines 10 and 11: `RPS` and `SECONDS_PER_RUN` take their values from the environment or default to 100 and 20. Line 12: the load generator command. Line 13: `OUT` is the file to write.
+4. Line 15: the `mode` function (switch the provider's behavior and reset its counters; see the scenario script). Line 16: `wait_ready` loops `until` the readiness endpoint reports `UP`: `jq -e` sets its exit code from the truth of the expression, and `sleep 2` waits between attempts.
+5. Lines 18 to 25: a brace group `{ ...; } > "$OUT"` sends everything the `echo` commands print into the output file, replacing the old content. It writes the title, a description that includes the date (`$(date -u +%Y-%m-%d)`) and the machine kind (`$(uname -sm)`), and the Markdown table header. A backslash before each backtick prints a literal backtick instead of starting a command.
+6. Line 27: `for protection in none full` repeats the whole block for the two settings. Line 28: `PRICE_PROTECTION="$protection" docker compose up -d --force-recreate --no-deps price-service` restarts only the price service with that setting for this one command. Line 29 waits until it is ready.
+7. Line 30: loops over four provider behaviors; `"slow delayMs=5000"` is one value holding two words. Line 31: `mode normal`. Line 32: reads ten prices once to warm the cache (only the full protection keeps a cache). Line 33: `mode $provider_mode` (unquoted on purpose so the two words become two arguments).
+8. Lines 34 and 35: runs the load generator and stores its JSON report. Line 36: reads the provider's own call count. Lines 37 and 38: `jq -s` reads all report lines into an array and `select(.name == "price")` picks the report of the price stream; the same for the side stream.
+9. Lines 39 to 41: `printf` writes one table row. `${provider_mode%% *}` removes everything from the first space, leaving only the mode name; each `jq -r` picks one number from the JSON (`<<<` feeds a variable as input); `.errorRate * 100 | round` turns the error share into a whole percentage. `tee -a "$OUT"` shows the row and appends it to the file.
+10. Lines 44 to 46: after the loops the provider returns to normal, the service is restarted with the full protection, and the script reports where the table is.
+
+
+### `scripts/capture-traces.sh`
+
+The whole file, as it is in the repository:
+
+```bash
+#!/usr/bin/env bash
+# The lesson's step 6 trace evidence, as text instead of screenshots: one trace of a request that retried and
+# succeeded, one of a request served stale after the provider failed, one of a request refused by the concurrency
+# limit (no provider call at all). Each trace is fetched from Tempo by the id the service returned in X-Trace-Id.
+# Usage: scripts/capture-traces.sh [price-url] [provider-url] [tempo-url]
+set -euo pipefail
+
+PRICE="${1:-http://localhost:${PRICE_PORT:-18104}}"
+PROVIDER="${2:-http://localhost:${PROVIDER_PORT:-18103}}"
+TEMPO="${3:-http://localhost:${TEMPO_PORT:-13200}}"
+OUT=docs/evidence
+mkdir -p "$OUT"
+
+mode() { curl -fsS -X PUT "$PROVIDER/admin/mode?mode=$1${2:+&$2}" >/dev/null; curl -fsS -X POST "$PROVIDER/admin/reset" >/dev/null; }
+trace_id() { curl -sS -D - -o /dev/null "$PRICE/price/$1" | tr -d '\r' | awk -F': ' 'tolower($1) == "x-trace-id" { print $2 }'; }
+
+summarize() { # trace id -> one line per span: name, duration in ms, status
+  local id="$1" attempts=0
+  until [ "$attempts" -ge 15 ]; do
+    if curl -fsS "$TEMPO/api/traces/$id" -o "$OUT/$2.json" 2>/dev/null; then break; fi
+    attempts=$((attempts + 1)); sleep 2
+  done
+  jq -r '[.. | objects | select(has("spans")) | .spans[]?] | sort_by(.startTimeUnixNano | tonumber)
+         | .[] | "\(.name)\t\(((.endTimeUnixNano | tonumber) - (.startTimeUnixNano | tonumber)) / 1000000 | floor) ms"' \
+    "$OUT/$2.json" > "$OUT/$2.txt"
+  echo "== $2 (trace $id)"; cat "$OUT/$2.txt"
+}
+
+mode normal; curl -fsS "$PRICE/price/sku-trace" >/dev/null
+mode normal failNext=2
+retried="$(trace_id sku-trace)"          # 503, 503, then 200: three attempts under one trace
+mode fail503
+stale="$(trace_id sku-trace)"            # provider down: three attempts, then the cached quote, stale=true
+mode hang
+seq 1 40 | xargs -P 40 -I{} curl -sS -o /dev/null "$PRICE/price/sku-fill-{}" &   # fill every slot with a hanging call
+sleep 1
+refused="$(trace_id sku-trace)"          # all slots taken: refused at once, no provider call, stale answer
+wait
+mode normal
+sleep 6                                    # let the exporter flush
+summarize "$retried" trace-retried
+summarize "$stale" trace-stale-after-failure
+summarize "$refused" trace-refused-no-provider-call
+```
+
+Reading it, block by block:
+
+1. Lines 1 to 5: shebang and comments: the script saves, as text, a trace of a request that retried then succeeded, one served stale after a failure, and one refused by the concurrency limit. A trace is the record of one request's steps and times; Tempo stores traces and returns one by its id, which the service puts in the `X-Trace-Id` response header.
+2. Line 6: strict mode. Lines 8 to 10: the three addresses (price service, provider, Tempo), each from an argument, an environment variable or a default port. Lines 11 and 12: the output folder `docs/evidence` and `mkdir -p`, which creates it if it is missing and is not an error if it exists.
+3. Line 14: the `mode` function that switches the provider's behavior and resets its counters.
+4. Line 15: `trace_id` requests a price and prints the trace id. `curl -sS -D - -o /dev/null` dumps the response headers (`-D -` means to standard output) and drops the body; `tr -d '\r'` removes carriage returns; `awk -F': '` splits each line at `: `, and the condition `tolower($1) == "x-trace-id"` selects the header whatever its letter case and prints its value `$2`.
+5. Lines 17 to 27: the function `summarize` takes a trace id as `$1` and a file name as `$2`. `local` makes variables private to the function. Lines 19 to 22 retry up to 15 times, two seconds apart, to download the trace from Tempo into a JSON file, because traces arrive a few seconds after the request. `until [ "$attempts" -ge 15 ]` loops until the counter reaches 15; `attempts=$((attempts + 1))` is arithmetic.
+6. Lines 23 to 25: `jq` collects every span (one step in the trace) from the JSON, sorts them by start time (`sort_by(...)`, with `tonumber` converting text to a number) and prints one line each: the name, a tab, and the duration in milliseconds (the end minus start in nanoseconds, divided by 1,000,000 and rounded down with `floor`). The backslashes at line ends continue the command. Line 26 prints a heading and the text file.
+7. Line 29: normal mode and one price request, so a good quote is cached. Line 30: `mode normal failNext=2` makes the next two provider calls fail. Line 31: the next request retries twice and succeeds, and its id is stored (three attempts in one trace).
+8. Lines 32 and 33: with the provider failing (`fail503`) the request makes three attempts and returns the cached quote marked stale; its id is stored.
+9. Lines 34 to 38: `hang` mode, then 40 requests at once are started in the background (`&`) so that every slot of the concurrency limit is filled with a hanging call; `sleep 1` waits a moment; one more request is refused at once without touching the provider, and its id is stored; `wait` waits for the background requests to end.
+10. Lines 39 to 43: back to normal mode; `sleep 6` lets the exporter send the spans; then the three traces are summarized into three text files.
+
+
+### `scripts/scenario.sh`
+
+The whole file, as it is in the repository:
+
+```bash
+#!/usr/bin/env bash
+# The lesson's steps 1, 3, 4 and 5 against the running stack, with the provider's own counters as the witness.
+# Usage: scripts/scenario.sh [price-url] [provider-url]
+set -euo pipefail
+
+PRICE="${1:-http://localhost:${PRICE_PORT:-18104}}"
+PROVIDER="${2:-http://localhost:${PROVIDER_PORT:-18103}}"
+LOADGEN="java -jar loadgen/target/loadgen-0.1.0.jar"
+
+heading() { printf '\n== %s\n' "$1"; }
+mode() { curl -fsS -X PUT "$PROVIDER/admin/mode?mode=$1${2:+&$2}" >/dev/null; curl -fsS -X POST "$PROVIDER/admin/reset" >/dev/null; }
+calls() { curl -fsS "$PROVIDER/admin/stats" | jq -r .callsReceived; }
+maxflight() { curl -fsS "$PROVIDER/admin/stats" | jq -r .maxInFlight; }
+
+heading "Step 1: provider in hang mode; a never-priced SKU fails in about the 2 s read timeout with a 504 problem"
+mode hang
+curl -sS -o /tmp/price-hang.json -w 'HTTP %{http_code} in %{time_total}s\n' "$PRICE/price/sku-hang-demo"
+jq -c . /tmp/price-hang.json
+
+heading "Step 2: baseline against the healthy provider, 100 requests a second for 20 s (p50, p99, error rate)"
+mode normal
+$LOADGEN --target "$PRICE/price/{sku}" --skus 10 --rps 100 --seconds 20 --side "$PRICE/skus/sku-1" --side-rps 10 | jq -c .
+
+heading "Step 3: calls the provider receives for ONE price request"
+mode fail503
+curl -sS -o /dev/null -w 'fail503: HTTP %{http_code}   ' "$PRICE/price/sku-retry-demo"; echo "provider calls: $(calls)   (1 original + 2 retries)"
+mode hang
+curl -sS -o /dev/null -w 'hang:    HTTP %{http_code}   ' "$PRICE/price/sku-timeout-demo"; echo "provider calls: $(calls)   (a timeout is not retried)"
+mode slow delayMs=5000
+curl -sS -o /dev/null -w 'slow:    HTTP %{http_code}   ' "$PRICE/price/sku-slow-demo"; echo "provider calls: $(calls)   (a timeout is not retried)"
+
+heading "Step 4: 60 concurrent requests for 60 different SKUs against a slow provider; the provider's own maximum in flight"
+mode slow delayMs=3000
+seq 1 60 | xargs -P 60 -I{} curl -sS -o /dev/null -w '%{http_code}\n' "$PRICE/price/sku-burst-{}" | sort | uniq -c | sed 's/^/  HTTP /'
+echo "provider max in flight: $(maxflight)   (the limit is PRICE_PROVIDER_MAX_CONCURRENT_CALLS, default 10)"
+curl -sS -o /dev/null -w 'the catalog endpoint during a slow provider: HTTP %{http_code} in %{time_total}s\n' "$PRICE/skus/sku-1"
+
+heading "Step 5: stale with a label"
+mode normal
+curl -fsS "$PRICE/price/sku-1" | jq -c .
+mode fail503
+echo "provider down, sku-1 priced a moment ago:"; curl -fsS "$PRICE/price/sku-1" | jq -c .
+echo "provider down, never priced:"; curl -sS -w '\nHTTP %{http_code}\n' "$PRICE/price/sku-never-priced"
+mode normal
+```
+
+Reading it, block by block:
+
+1. Lines 1 to 4: shebang, comments (which lesson steps it runs, with the provider's own counters as proof) and strict mode.
+2. Lines 6 and 7: `PRICE` and `PROVIDER` are the addresses of the price service (default port 18104) and the fake provider (default 18103). Each is the first or second script argument, or `http://localhost:` plus a port from an environment variable, or the default port.
+3. Line 8: `LOADGEN` holds the command that runs the load generator jar. It is used later as `$LOADGEN --target ...`; because the variable is not in quotes, the shell splits it into words.
+4. Line 10: `heading` prints a titled separator.
+5. Line 11: `mode() { ... }` is a shell function, a named block of commands you can call like a command. `mode hang` runs `curl -fsS -X PUT "$PROVIDER/admin/mode?mode=hang"`: curl sends an HTTP PUT request to the provider's admin address to switch its behavior. `${2:+&$2}` means: if a second argument was given, add `&` and that argument to the URL, otherwise add nothing. `>/dev/null` throws the response text away. Then a second curl POSTs to `/admin/reset`, which zeroes the provider's counters, so every experiment starts from zero.
+6. Lines 12 and 13: `calls` and `maxflight` ask the provider's stats endpoint for its counters (`jq -r .callsReceived` and `.maxInFlight` pick one number out of the JSON). They give an independent witness: the provider counts what it actually received.
+7. Lines 15 to 18 (step 1): `mode hang` makes the provider never answer. `curl -sS -o /tmp/price-hang.json -w 'HTTP %{http_code} in %{time_total}s\n' ...` saves the body to a file and prints the status code and the total time, which should be about the 2 second read timeout with a 504 answer. `jq -c .` then prints the saved body.
+8. Lines 20 to 22 (step 2): with a healthy provider, runs the load generator for 20 seconds at 100 requests per second against 10 SKUs, with a second stream of 10 requests per second to the catalog endpoint. `{sku}` in the target is replaced by a different SKU for each request. The generator prints a JSON report (percentiles and error rate); `jq -c .` formats it.
+9. Lines 24 to 30 (step 3): three experiments, each followed by the provider's call count. With `fail503` the provider answers 503, and the count shows one original call plus two retries. With `hang` and with `slow delayMs=5000` the request times out and the count shows one call, because a timeout is deliberately not retried. `echo "...$(calls)..."` prints the count by running the `calls` function inside the string.
+10. Lines 32 to 36 (step 4): `seq 1 60 | xargs -P 60 -I{} curl ...` produces the numbers 1 to 60 and runs 60 `curl` commands at the same time (`-P 60` is the number of parallel processes, `-I{}` marks where the number goes in the command). Each prints only its status code; `sort | uniq -c` counts how often each code appears and `sed 's/^/  HTTP /'` formats it. The next lines print the provider's maximum number of calls in flight (it must not exceed the limit) and show that the catalog endpoint stays fast during the slow provider.
+11. Lines 38 to 44 (step 5): with a healthy provider the price is read and cached; with the provider down, the same SKU is still answered, labeled stale; a SKU never priced before gets an error. The last line returns the provider to normal.
+
+
 ## Try it yourself
 
 1. After `make up`: `scripts/scenario.sh`.
