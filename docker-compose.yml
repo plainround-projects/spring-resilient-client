@@ -1,0 +1,63 @@
+# The fake provider, the price service, and a Grafana stack (Grafana, Prometheus, Tempo, an OTLP receiver in one
+# image) that receives the service's metrics and traces. `make up` builds both images and waits until all are healthy.
+services:
+  provider:
+    build:
+      context: .
+      dockerfile: provider/Dockerfile
+    image: spring-resilient-client-provider:dev
+    ports:
+      - "${PROVIDER_PORT:-18103}:8081"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8081 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q ok <&3"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  price-service:
+    build:
+      context: .
+      dockerfile: price-service/Dockerfile
+    image: spring-resilient-client-price:dev
+    depends_on:
+      provider:
+        condition: service_healthy
+    ports:
+      - "${PRICE_PORT:-18104}:8080"
+    environment:
+      PRICE_PROVIDER_BASE_URL: http://provider:8081
+      PRICE_PROTECTION: ${PRICE_PROTECTION:-full}
+      PRICE_PROVIDER_MAX_CONCURRENT_CALLS: ${PRICE_PROVIDER_MAX_CONCURRENT_CALLS:-10}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-lgtm:4318/v1/traces
+      OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-lgtm:4318/v1/metrics
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8080 && printf 'GET /actuator/health/readiness HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q '\"status\":\"UP\"' <&3"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+
+  otel-lgtm:
+    image: grafana/otel-lgtm:latest
+    ports:
+      - "${GRAFANA_PORT:-13000}:3000"
+      - "${OTLP_HTTP_PORT:-14318}:4318"
+      - "${TEMPO_PORT:-13200}:3200"
+      - "${PROMETHEUS_PORT:-19090}:9090"
+    volumes:
+      - ./observability/dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/plainround.yaml:ro
+      - ./observability/price-service-dashboard.json:/var/lib/plainround-dashboards/price-service-dashboard.json:ro
