@@ -104,6 +104,8 @@ Every provider call has a connect and a read timeout, validated at startup; retr
 
 ## Verification status
 
+Every row marked "pending capacity" needs Docker: restart Docker Desktop with free disk first (Docker.raw was at its 60 GiB cap on 2026-10-28), then run the command in that row.
+
 Run on 2026-10-27 on a Mac that was very heavily loaded and whose Docker became unusable during the night (see below).
 
 | Check | Command | Result |
