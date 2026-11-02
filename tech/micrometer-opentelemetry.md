@@ -60,7 +60,7 @@ private void record(Timer.Sample sample, String result) {
 }
 ```
 
-`meters.counter("price.provider.attempts", "result", result).increment()` counts every attempt by outcome (`success`, `unavailable`, `io`, `error`); retries show as extra `unavailable` attempts. `Timer.builder("price.provider.call")...register(meters)` times each attempt, and `sample.stop(...)` records the duration. In Prometheus text these become `price_provider_attempts_total`, `price_provider_call_seconds_bucket` and so on.
+`meters.counter("price.provider.attempts", "result", result).increment()` counts every attempt by outcome (`success`, `unavailable`, `io`, `error`); retries show as extra `unavailable` attempts. `Timer.builder("price.provider.call")...register(meters)` times each attempt, and `sample.stop(...)` records the duration. In Prometheus text these become `price_provider_attempts_total` for the counter and, for the timer, `price_provider_call_seconds_bucket`, `price_provider_call_seconds_sum` and `price_provider_call_seconds_count`.
 
 ```java
 public Quote fetch(String sku) {

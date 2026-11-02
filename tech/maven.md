@@ -486,7 +486,7 @@ Reading it, element by element (each line is one XML element, indented under the
                   - `<element>` `BUNDLE`: what the check measures: `BUNDLE` is the whole module, `PACKAGE` one package.
                   - `<limits>`: the thresholds for the check.
                     - `<limit>`: one threshold.
-                      - `<counter>` `LINE`: what is counted: `LINE`, `BRANCH`, and so on.
+                      - `<counter>` `LINE`: what is counted: one of `INSTRUCTION`, `LINE`, `BRANCH`, `COMPLEXITY`, `METHOD` or `CLASS`.
                       - `<value>` `COVEREDRATIO`: how it is expressed: `COVEREDRATIO` is the covered share between 0 and 1.
                       - `<minimum>` `${jacoco.bundle.minimum}`: the lowest allowed value; below it the build fails.
       - `<plugin>`: one plugin: a program Maven runs during the build.
@@ -888,14 +888,14 @@ Reading it, element by element (each line is one XML element, indented under the
                     - `<include>` `*.domain`: one item to use.
                   - `<limits>`: the thresholds for the check.
                     - `<limit>`: one threshold.
-                      - `<counter>` `LINE`: what is counted: `LINE`, `BRANCH`, and so on.
+                      - `<counter>` `LINE`: what is counted: one of `INSTRUCTION`, `LINE`, `BRANCH`, `COMPLEXITY`, `METHOD` or `CLASS`.
                       - `<value>` `COVEREDRATIO`: how it is expressed: `COVEREDRATIO` is the covered share between 0 and 1.
                       - `<minimum>` `${jacoco.domain.minimum}`: the lowest allowed value; below it the build fails.
                 - `<rule>`: one check.
                   - `<element>` `BUNDLE`: what the check measures: `BUNDLE` is the whole module, `PACKAGE` one package.
                   - `<limits>`: the thresholds for the check.
                     - `<limit>`: one threshold.
-                      - `<counter>` `LINE`: what is counted: `LINE`, `BRANCH`, and so on.
+                      - `<counter>` `LINE`: what is counted: one of `INSTRUCTION`, `LINE`, `BRANCH`, `COMPLEXITY`, `METHOD` or `CLASS`.
                       - `<value>` `COVEREDRATIO`: how it is expressed: `COVEREDRATIO` is the covered share between 0 and 1.
                       - `<minimum>` `${jacoco.bundle.minimum}`: the lowest allowed value; below it the build fails.
 
