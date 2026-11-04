@@ -51,7 +51,7 @@ flowchart LR
 1. `PriceController` validates the SKU and calls `PriceService.price`.
 2. `HttpQuoteSource.fetch` calls `ProviderCall.attempt`, a separate bean, through its proxy. The proxy first asks the concurrency limit for a slot. If all N slots are taken, it throws at once (`InvocationRejectedException`) and no provider call is made.
 3. With a slot, the attempt sends `GET /quotes/{sku}` through the `RestClient`. A 200 gives a `Quote`.
-4. A 503 is the one retryable failure: the retry interceptor waits 100 ms (plus up to 50 ms of jitter), then 200 ms, then stops after two retries. Each attempt asks for a slot again and is counted by the provider independently, so one price request is at most three provider calls.
+4. A 503 is the one retryable failure: the retry interceptor waits 100 ms (plus up to 50 ms of jitter), then 200 ms, then stops after two retries. The slot is taken once, before the first attempt, and held while the retries run (the concurrency limit wraps the retry loop); each attempt is counted by the provider independently, so one price request holds one slot and makes at most three provider calls.
 5. A timeout (`HttpTimeoutException` inside `ResourceAccessException`) is a different exception type, so it is not retried: the request has already spent the read timeout, and a retry would add load to a provider that is struggling.
 6. `HttpQuoteSource` names the final outcome (`ProviderTimeout`, `ProviderUnavailable` or `ProviderBusy`) and counts it.
 7. `PriceService` remembers a fresh quote in the cache and answers `stale: false`. On a `ProviderFailure` it asks the cache for the last good quote; if one is younger than 60 seconds it answers `stale: true` with its age, otherwise it raises `NoPriceAvailable`, which becomes a 504 (the failure was a timeout) or a 503 with `Retry-After` (anything else).
@@ -80,7 +80,7 @@ flowchart LR
 | Thread and connection pile-up | slow | at most N calls in flight, the rest refused immediately; the provider's own `maxInFlight` never exceeds N; the catalog endpoint answers during the storm | `PriceServiceBehaviorIT.inFlightProviderCallsNeverExceedTheLimitWhileOtherEndpointsKeepAnswering`, `ResilienceAnnotationsTest` |
 | Provider is down, SKU recently priced | 503 or silence | 200 with `stale: true` and `ageSeconds` | `PriceServiceBehaviorIT.aRecentlyPricedSkuIsServedStaleWhenTheProviderIsDownAndANeverPricedOneIs503` |
 | Provider is down, SKU never priced, or quote older than 60 s | 503 or silence | 503 `Provider unavailable` with `Retry-After` (504 if the cause was a timeout) | same test, and `aQuoteOlderThanSixtySecondsIsNotServed` |
-| Retry storm | | not possible: at most two retries, 503 only, jittered, each attempt needs a concurrency slot | the call-count tests above |
+| Retry storm | | not possible: at most two retries, 503 only, jittered, and the whole retry loop runs inside one concurrency slot | the call-count tests above |
 
 ## Limits of the teaching build
 
