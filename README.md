@@ -12,6 +12,24 @@ A price service that stays fast and honest while its provider is slow, failing o
 | **Technology notes** | [tech/README.md](tech/README.md): one note per technology used here, written for a complete beginner |
 | **Author** | Sumit Srivastava |
 
+## Architecture
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-dark.svg">
+  <img alt="A load tool calls the PriceController; PriceService asks HttpQuoteSource and ProviderCall, which limit retries and in-flight calls, calls the fake provider through a RestClient with timeouts, and falls back to the last good quote in InMemoryQuoteCache." src="docs/diagrams/architecture.svg">
+</picture>
+
+Every protection sits in the call path: timeouts on the RestClient, a 503-only retry and a rejecting concurrency limit on ProviderCall, and a stale fallback in the cache.
+
+## How one run flows
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/flow-dark.svg">
+  <img alt="A price request passes the concurrency slot and the timeouts, retries a 503 at most twice, never retries a timeout, and falls back to a quote younger than 60 seconds labeled stale." src="docs/diagrams/flow.svg">
+</picture>
+
+The amber rows are the 503 retry and the timeout; the run ends in a 200 with stale true when the cache has a recent quote.
+
 ## Prerequisites
 
 | Tool | Version | Used for |

@@ -23,6 +23,8 @@ The provider is deliberately not a Spring application (see [ADR 0001](docs/adr/0
 
 ## Data flow
 
+Drawn versions of this figure and of the walk-through: [the architecture](docs/diagrams/architecture.svg) and [one run](docs/diagrams/flow.svg).
+
 ```mermaid
 flowchart LR
     load([Load tool])
